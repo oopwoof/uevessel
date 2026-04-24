@@ -10,6 +10,31 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Planned
+- v0.2 路线图(MCP server / CI commandlet / 第二 agent 模板 / OpenAI + Qwen provider / SQLite FTS5 长期 memory)开始拆分 issue
+
+---
+
+## [0.1.0-alpha.1] · 2026-04-24
+
+**首个公开 alpha**。Tool Registry / LLM Adapter / Session Machine / HITL Gate / Slate 面板五大件端到端打通,产品 + 工程 + 协作三册文档同步发布。
+
+**Highlights**:
+- 反射驱动 Tool Registry —— 写 `UFUNCTION` 带 meta 即自动导出为 agent tool,无需手写 schema
+- Session Machine —— 8 态显式 FSM,每个状态切换点都查 budget,LLM 不做自循环黑箱
+- HITL Gate —— 默认 on,所有写操作必经 Slate 面板审批,Reject 理由自动沉淀到 `AGENTS.md`
+- Designer Assistant 默认模板 —— 开 Editor 即用,首发支持 DataTable + Asset + Validator 工具集
+- Mock LLM Provider —— 全部 69 个 automation tests 在 CI 上离线跑过,不烧真 API key
+- 5.5 最低 / 5.7 daily,模块兼容 Runtime + Editor 两种构建
+- 完整三册文档(产品 / 工程 / 协作)和 7 条 ADR 已 ship,任何贡献者都能从文档建立心智模型
+
+**Known limitations(已显式延后)**:
+- Edit-and-Approve UI 仍是 disabled 占位(留 v0.2)
+- Slate widget automation 测试需 render pump,仅做 module-level smoke(留 v0.2)
+- Anthropic provider tool_use 序列化骨架已就位,完整 multi-turn tool-use 链留 v0.2 打磨
+
+详细打包内容如下。
+
 ### Added
 - Product book:VISION / PERSONAS / USE_CASES / UX_PRINCIPLES / COMPETITIVE
 - Engineering book:ARCHITECTURE(含 ADR 001–007)/ TOOL_REGISTRY / SESSION_MACHINE / HITL_PROTOCOL / CODING_STYLE / BUILD
@@ -211,17 +236,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `SVesselChatPanel::AppendMessageInternal` 增加 **200 条上限**,超限滚前删首条 —— 长 session 不再堆积 widget
 - 新增测试 `Vessel.Session.AgentTemplates.AllowedCategoryPrefixMatch` 证明 `AllowedCategories=["DataTable"]` 通过 prefix 匹配自动覆盖 `"DataTable/Write"`;钉死 Gemini 误读过的语义不再变(Designer Assistant 能真实调用 WriteDataTableRow)
 
-**累计测试数**:69
-
-**累计测试数**:68
+**累计测试数**:69(Session Machine 端到端 6 维 + HITL gate 5 维 + Slate approval 3 维 + agent template 3 维 + 全部 step 累积)
 
 ---
 
 ## 版本规划(待交付)
-
-### [0.1.0] · 目标 6–8 周内
-
-最小可公开展示(Show HN / r/unrealengine)。硬性范围见 [ROADMAP § v0.1](docs/process/ROADMAP.md)。
 
 ### [0.2.0]
 

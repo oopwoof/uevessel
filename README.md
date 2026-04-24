@@ -3,11 +3,12 @@
 > **An open harness for building AI agents that assist Unreal Engine development.**
 > 让 Unreal 策划、美术、程序能用自然语言调用 AI agent 完成研发期任务 —— agent 的每个改动都可预览、可撤销、可审计。
 
-[![status](https://img.shields.io/badge/status-pre--v0.1--alpha-orange)](docs/process/ROADMAP.md)
+[![release](https://img.shields.io/github/v/release/oopwoof/uevessel?include_prereleases&label=release)](https://github.com/oopwoof/uevessel/releases)
+[![ci](https://github.com/oopwoof/uevessel/actions/workflows/build-plugin.yml/badge.svg)](https://github.com/oopwoof/uevessel/actions/workflows/build-plugin.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![UE](https://img.shields.io/badge/Unreal%20Engine-5.5%2B-lightgrey)](docs/engineering/BUILD.md)
 
-> ⚠ **pre-v0.1 alpha**. API is unstable. 现阶段是公开的 design phase,代码实现跟随文档推进。进度看 [ROADMAP.md](docs/process/ROADMAP.md)。
+> ⚠ **v0.1.0-alpha.1** —— alpha 版本,API 仍可能动。Tool Registry / Session Machine / HITL Gate / Slate 面板已端到端打通(69 个 automation tests 覆盖)。 后续节奏见 [ROADMAP.md](docs/process/ROADMAP.md)、详细变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -75,7 +76,7 @@ Vessel 是一个 UE Editor 内的停靠面板:
 
 ```bash
 cd <YourUnrealProject>/Plugins
-git clone https://github.com/<org>/uevessel.git Vessel
+git clone https://github.com/oopwoof/uevessel.git Vessel
 ```
 
 Generate VS project files → 编译 → 启动 Editor → 填 API key → 打开 `Window → Vessel Chat`。
@@ -200,5 +201,5 @@ Vessel 的哲学不是凭空而来。主要思想来源:
 
 ---
 
-*Vessel is pre-v0.1 software. Expect incomplete features, breaking changes, and incidents.*
+*Vessel is alpha software (v0.1.0-alpha.1). Expect breaking changes between minor versions until v1.0.*
 *Vessel 当前为 alpha,使用需自行承担风险。欢迎在 issue 里讨论如何一起让它稳定。*
