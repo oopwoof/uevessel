@@ -127,19 +127,19 @@ void FVesselToolRegistry::InjectSchemaForTest(const FVesselToolSchema& Schema)
 
 int32 FVesselToolRegistry::Num() const
 {
-	FRWScopeLock RLock(const_cast<FRWLock&>(Lock), SLT_ReadOnly);
+	FRWScopeLock RLock(Lock, SLT_ReadOnly);
 	return Schemas.Num();
 }
 
 const FVesselToolSchema* FVesselToolRegistry::FindSchema(FName ToolName) const
 {
-	FRWScopeLock RLock(const_cast<FRWLock&>(Lock), SLT_ReadOnly);
+	FRWScopeLock RLock(Lock, SLT_ReadOnly);
 	return Schemas.Find(ToolName);
 }
 
 TArray<FName> FVesselToolRegistry::ListToolNames() const
 {
-	FRWScopeLock RLock(const_cast<FRWLock&>(Lock), SLT_ReadOnly);
+	FRWScopeLock RLock(Lock, SLT_ReadOnly);
 	TArray<FName> Names;
 	Schemas.GetKeys(Names);
 	return Names;
@@ -147,7 +147,7 @@ TArray<FName> FVesselToolRegistry::ListToolNames() const
 
 TArray<FVesselToolSchema> FVesselToolRegistry::GetAllSchemas() const
 {
-	FRWScopeLock RLock(const_cast<FRWLock&>(Lock), SLT_ReadOnly);
+	FRWScopeLock RLock(Lock, SLT_ReadOnly);
 	TArray<FVesselToolSchema> Out;
 	Schemas.GenerateValueArray(Out);
 	return Out;
@@ -155,7 +155,7 @@ TArray<FVesselToolSchema> FVesselToolRegistry::GetAllSchemas() const
 
 FString FVesselToolRegistry::ToJsonString() const
 {
-	FRWScopeLock RLock(const_cast<FRWLock&>(Lock), SLT_ReadOnly);
+	FRWScopeLock RLock(Lock, SLT_ReadOnly);
 	FString Body;
 	bool bFirst = true;
 	for (const TPair<FName, FVesselToolSchema>& Pair : Schemas)

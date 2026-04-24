@@ -6,13 +6,19 @@
 #include "Tools/VesselDataTableTools.h"
 
 #include "Engine/DataTable.h"
+#include "UObject/StrongObjectPtr.h"
 
 namespace VesselDataTableTestDetail
 {
-	/** Construct a transient in-memory DataTable with three rows of FVesselTestRow. */
-	static UDataTable* MakeInMemoryTable()
+	/**
+	 * Construct a transient in-memory DataTable with three rows of FVesselTestRow.
+	 * Returned via TStrongObjectPtr so the test keeps the UDataTable alive across
+	 * any GC pass that might fire during latent/async variants of this test.
+	 */
+	static TStrongObjectPtr<UDataTable> MakeInMemoryTable()
 	{
-		UDataTable* Table = NewObject<UDataTable>(GetTransientPackage(), UDataTable::StaticClass());
+		TStrongObjectPtr<UDataTable> Table(
+			NewObject<UDataTable>(GetTransientPackage(), UDataTable::StaticClass()));
 		Table->RowStruct = FVesselTestRow::StaticStruct();
 
 		FVesselTestRow Alpha; Alpha.Title = TEXT("Alpha"); Alpha.Age = 20; Alpha.bActive = true;
@@ -36,11 +42,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FVesselDataTableReadAll::RunTest(const FString& /*Parameters*/)
 {
-	UDataTable* Table = VesselDataTableTestDetail::MakeInMemoryTable();
-	TestNotNull(TEXT("In-memory table created"), Table);
-	if (!Table) { return false; }
+	TStrongObjectPtr<UDataTable> Table = VesselDataTableTestDetail::MakeInMemoryTable();
+	TestNotNull(TEXT("In-memory table created"), Table.Get());
+	if (!Table.IsValid()) { return false; }
 
-	const FString Json = UVesselDataTableTools::ReadRowsJson(Table, TArray<FName>());
+	const FString Json = UVesselDataTableTools::ReadRowsJson(Table.Get(), TArray<FName>());
 	TestTrue(TEXT("All rows: Row_Alpha present"), Json.Contains(TEXT("Row_Alpha")));
 	TestTrue(TEXT("All rows: Row_Beta present"),  Json.Contains(TEXT("Row_Beta")));
 	TestTrue(TEXT("All rows: Row_Gamma present"), Json.Contains(TEXT("Row_Gamma")));
@@ -60,14 +66,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FVesselDataTableReadSelected::RunTest(const FString& /*Parameters*/)
 {
-	UDataTable* Table = VesselDataTableTestDetail::MakeInMemoryTable();
-	if (!Table) { return false; }
+	TStrongObjectPtr<UDataTable> Table = VesselDataTableTestDetail::MakeInMemoryTable();
+	if (!Table.IsValid()) { return false; }
 
 	TArray<FName> Selected;
 	Selected.Add(FName(TEXT("Row_Alpha")));
 	Selected.Add(FName(TEXT("Row_Gamma")));
 
-	const FString Json = UVesselDataTableTools::ReadRowsJson(Table, Selected);
+	const FString Json = UVesselDataTableTools::ReadRowsJson(Table.Get(), Selected);
 	TestTrue(TEXT("Selected: Alpha present"), Json.Contains(TEXT("Row_Alpha")));
 	TestTrue(TEXT("Selected: Gamma present"), Json.Contains(TEXT("Row_Gamma")));
 	TestFalse(TEXT("Selected: Beta absent"),   Json.Contains(TEXT("Row_Beta")));
@@ -99,14 +105,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FVesselDataTableUnknownRow::RunTest(const FString& /*Parameters*/)
 {
-	UDataTable* Table = VesselDataTableTestDetail::MakeInMemoryTable();
-	if (!Table) { return false; }
+	TStrongObjectPtr<UDataTable> Table = VesselDataTableTestDetail::MakeInMemoryTable();
+	if (!Table.IsValid()) { return false; }
 
 	TArray<FName> Missing;
 	Missing.Add(FName(TEXT("_NoSuchRow")));
 	Missing.Add(FName(TEXT("Row_Beta")));
 
-	const FString Json = UVesselDataTableTools::ReadRowsJson(Table, Missing);
+	const FString Json = UVesselDataTableTools::ReadRowsJson(Table.Get(), Missing);
 	TestFalse(TEXT("Unknown row omitted"), Json.Contains(TEXT("_NoSuchRow")));
 	TestTrue(TEXT("Known row still present"), Json.Contains(TEXT("Row_Beta")));
 	return true;

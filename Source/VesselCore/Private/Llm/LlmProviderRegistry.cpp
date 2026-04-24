@@ -30,7 +30,7 @@ void FLlmProviderRegistry::InjectMock(const TSharedRef<ILlmProvider>& Mock)
 
 TSharedPtr<ILlmProvider> FLlmProviderRegistry::FindProvider(const FString& Id) const
 {
-	FRWScopeLock RLock(const_cast<FRWLock&>(Lock), SLT_ReadOnly);
+	FRWScopeLock RLock(Lock, SLT_ReadOnly);
 	if (const TSharedRef<ILlmProvider>* Found = Providers.Find(Id))
 	{
 		return TSharedPtr<ILlmProvider>(*Found);
@@ -40,7 +40,7 @@ TSharedPtr<ILlmProvider> FLlmProviderRegistry::FindProvider(const FString& Id) c
 
 TArray<FString> FLlmProviderRegistry::ListProviderIds() const
 {
-	FRWScopeLock RLock(const_cast<FRWLock&>(Lock), SLT_ReadOnly);
+	FRWScopeLock RLock(Lock, SLT_ReadOnly);
 	TArray<FString> Ids;
 	Providers.GetKeys(Ids);
 	return Ids;

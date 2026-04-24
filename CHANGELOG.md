@@ -81,6 +81,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### CI
 - `build-plugin` workflow:clang-format job 改为 `continue-on-error: true`(pre-v0.1 临时放行 —— 作者本地尚未装 clang-format;等装好并清理 drift 后升回 blocking)。docs lint / forbidden-brand / api-key 检查保持强制
 
+### Fix (Gemini 3 Pro Preview code review)
+- `FVesselToolSchema::Function` 从 raw `UFunction*` 改 **`TWeakObjectPtr<UFunction>`** —— Live Coding / module reload 会重建 UClass/UFunction,raw 指针会悬空 → Invoker 调用时 AV
+- `FVesselToolInvoker::Invoke` 顶部加 **`checkf(IsInGameThread(), ...)`** —— `ProcessEvent` 硬要求 game thread,async 回调直接驱动会底层 assert
+- `FVesselReflectionScanner` 跳过**纯 OutParm**(`CPF_OutParm && !CPF_ReferenceParm`)—— 避免 LLM 被要求传引擎内部输出参数;Invoker 仍分配 + 初始化内存保持 ProcessEvent 安全
+- 移除 `const_cast<FRWLock&>(Lock)` 反模式(2 处:`VesselToolRegistry.cpp` / `LlmProviderRegistry.cpp`)—— 成员已经 `mutable`,cast 多余且潜在 UB
+- MockProvider tests 去掉 `Future.Wait() + Future.Get()` 范式,改 `Future.Get()` 单调用 —— 该模板若被真 HTTP provider 抄走会死锁 game thread
+- 测试 DataTable 用 **`TStrongObjectPtr<UDataTable>`** 包装,避免未来 latent test GC 悬空
+
 ---
 
 ## 版本规划(待交付)

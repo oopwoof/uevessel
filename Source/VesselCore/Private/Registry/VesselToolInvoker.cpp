@@ -202,6 +202,13 @@ FVesselResult<FString> FVesselToolInvoker::Invoke(
 	const FString& ArgsJson,
 	const FInvokeOptions& Options)
 {
+	// ProcessEvent on UObjects is not thread-safe; UE hard-asserts if called
+	// from a non-game thread. Fail loudly if an async callback tries to drive
+	// tool dispatch directly — callers must hop back via TaskGraph / AsyncTask.
+	checkf(IsInGameThread(),
+		TEXT("FVesselToolInvoker::Invoke must be called on the Game Thread "
+		     "(ProcessEvent requirement). Dispatch via AsyncTask(ENamedThreads::GameThread, ...) if needed."));
+
 	const FVesselToolSchema* Schema = FVesselToolRegistry::Get().FindSchema(ToolName);
 	if (!Schema)
 	{
@@ -211,11 +218,14 @@ FVesselResult<FString> FVesselToolInvoker::Invoke(
 				*ToolName.ToString()));
 	}
 
-	UFunction* Func = Schema->Function;
+	// TWeakObjectPtr detects the Live Coding / module reload case where the
+	// UFunction was recreated. Rescan is the recovery path.
+	UFunction* Func = Schema->Function.Get();
 	if (!Func)
 	{
 		return FVesselResult<FString>::Err(EVesselResultCode::Internal,
-			FString::Printf(TEXT("Tool '%s' has no bound UFunction — reflection scan likely stale."),
+			FString::Printf(TEXT("Tool '%s' has a stale UFunction (likely Live Coding / module reload). "
+			                     "Run VesselRegistry.Refresh or restart the Editor."),
 				*ToolName.ToString()));
 	}
 

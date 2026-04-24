@@ -207,9 +207,14 @@ FVesselToolSchema FVesselReflectionScanner::BuildSchemaForFunction(UClass* Ownin
 	S.bBatchEligible    = ReadMetaBool(Function, kBatchEligible, false);
 	S.MinVesselVersion  = ReadMetaString(Function, kMinVesselVersion);
 	S.Tags              = ReadMetaTags(Function);
-	S.Function          = Function;
+	S.Function          = Function; // TWeakObjectPtr<UFunction> accepts raw assignment
 
-	// Enumerate parameters. UE marks return values with CPF_ReturnParm.
+	// Enumerate parameters.
+	//   CPF_ReturnParm          → return value; emit as ReturnTypeJson, skip from Parameters list.
+	//   CPF_OutParm w/o         → pure out-parameter — engine-internal output, LLM must NOT provide.
+	//   CPF_ReferenceParm         Still allocated + initialized by Invoker, but not schema-surfaced.
+	//   CPF_OutParm + CPF_Ref   → input-output (ref) — treat as normal input parameter.
+	//   default                 → input by value.
 	for (TFieldIterator<FProperty> It(Function); It; ++It)
 	{
 		FProperty* Prop = *It;
@@ -218,17 +223,28 @@ FVesselToolSchema FVesselReflectionScanner::BuildSchemaForFunction(UClass* Ownin
 			continue;
 		}
 
-		const bool bIsReturn = (Prop->PropertyFlags & CPF_ReturnParm) != 0;
+		const bool bIsReturn  = (Prop->PropertyFlags & CPF_ReturnParm)    != 0;
+		const bool bIsPureOut =
+			((Prop->PropertyFlags & CPF_OutParm) != 0) &&
+			((Prop->PropertyFlags & CPF_ReferenceParm) == 0) &&
+			!bIsReturn;
+
 		if (bIsReturn)
 		{
 			S.ReturnTypeJson = PropertyToJsonSchema(Prop);
+			continue;
+		}
+		if (bIsPureOut)
+		{
+			// Intentionally not surfaced to the LLM. The Invoker still
+			// allocates + initializes the slot so ProcessEvent is memory-safe.
 			continue;
 		}
 
 		FVesselParameterSchema Param;
 		Param.Name = Prop->GetFName();
 		Param.TypeJson = PropertyToJsonSchema(Prop);
-		Param.bRequired = true; // all params required by default; UPARAM(optional) lands in step 3b
+		Param.bRequired = true; // UPARAM(optional) support lands in step 3c
 		Param.bIsReturnValue = false;
 		S.Parameters.Add(MoveTemp(Param));
 	}

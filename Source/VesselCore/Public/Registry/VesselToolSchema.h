@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 
+#include "UObject/WeakObjectPtrTemplates.h"
+
 // Forward declare to keep POD headers free of reflection plumbing.
 class UFunction;
 class UClass;
@@ -72,10 +74,12 @@ struct FVesselToolSchema
 	FString SourceModuleName;
 
 	/**
-	 * Raw pointer to the reflected UFunction. UClass / UFunction live for the
-	 * whole process lifetime (they are not GC'd), so storing raw is safe. Do
-	 * NOT call UFunction::Invoke directly from schema consumers — go through
-	 * FVesselToolRegistry which applies arg validation and policy checks.
+	 * Weak pointer to the reflected UFunction. Even though UClass / UFunction
+	 * are not GC'd in the usual sense, UE Editor's Live Coding + module reload
+	 * path recreates them — a raw pointer becomes dangling across a reload.
+	 * TWeakObjectPtr lets us detect that case and force a rescan.
+	 * Do NOT call UFunction::Invoke directly from schema consumers — go through
+	 * FVesselToolRegistry / FVesselToolInvoker which validate + policy check.
 	 */
-	UFunction* Function = nullptr;
+	TWeakObjectPtr<UFunction> Function;
 };

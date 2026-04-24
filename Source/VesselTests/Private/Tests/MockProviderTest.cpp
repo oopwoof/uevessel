@@ -26,9 +26,9 @@ bool FVesselMockProviderFixtureHit::RunTest(const FString& /*Parameters*/)
 	Req.Messages.Add({ EVesselLlmRole::System, TEXT("sys prompt"), FString() });
 	Req.Messages.Add({ EVesselLlmRole::User,   TEXT("hello"),      FString() });
 
-	TFuture<FLlmResponse> Future = Mock->SendAsync(Req);
-	Future.Wait();
-	const FLlmResponse R = Future.Get();
+	// .Get() internally waits until the future is ready; no separate Wait()
+	// call — that pattern would deadlock on game-thread-ticked HTTP providers.
+	const FLlmResponse R = Mock->SendAsync(Req).Get();
 
 	TestTrue(TEXT("Fixture hit returns bOk=true"), R.bOk);
 	TestEqual(TEXT("Fixture content matches"), R.Content, FString(TEXT("mocked reply for hello")));
@@ -49,9 +49,9 @@ bool FVesselMockProviderDefaultFallback::RunTest(const FString& /*Parameters*/)
 	FLlmRequest Req;
 	Req.Messages.Add({ EVesselLlmRole::User, TEXT("no fixture for me"), FString() });
 
-	TFuture<FLlmResponse> Future = Mock->SendAsync(Req);
-	Future.Wait();
-	const FLlmResponse R = Future.Get();
+	// .Get() internally waits until the future is ready; no separate Wait()
+	// call — that pattern would deadlock on game-thread-ticked HTTP providers.
+	const FLlmResponse R = Mock->SendAsync(Req).Get();
 
 	TestFalse(TEXT("Unmatched request without default response returns bOk=false"), R.bOk);
 	TestEqual(TEXT("ErrorCode is ConfigError"),
