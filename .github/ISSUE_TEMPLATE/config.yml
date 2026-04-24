@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / Discussion
+    url: https://github.com/uevessel/uevessel/discussions
+    about: For usage questions and design discussions, please open a Discussion rather than an Issue.
+  - name: Security report
+    url: https://github.com/uevessel/uevessel/security/advisories/new
+    about: To report a security vulnerability privately, use GitHub security advisories.

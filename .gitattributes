@@ -1,0 +1,52 @@
+# Vessel · .gitattributes
+# Normalize line endings; mark UE binary assets so git doesn't attempt diff.
+
+# Default: treat as text, enforce LF in repo
+*               text=auto eol=lf
+
+# Windows-only scripts
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+
+# Source
+*.h             text eol=lf
+*.cpp           text eol=lf
+*.cs            text eol=lf
+*.py            text eol=lf
+*.md            text eol=lf
+*.ini           text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.json          text eol=lf
+*.toml          text eol=lf
+*.sh            text eol=lf
+
+# UE binary assets (no diff, no merge)
+*.uasset        binary
+*.umap          binary
+*.udic          binary
+*.utx           binary
+
+# Image / audio / model / font — common binaries
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.bmp           binary
+*.tga           binary
+*.ico           binary
+*.svg           text eol=lf
+*.psd           binary
+*.fbx           binary
+*.obj           binary
+*.ttf           binary
+*.otf           binary
+*.wav           binary
+*.mp3           binary
+*.ogg           binary
+
+# Archives
+*.zip           binary
+*.7z            binary
+*.rar           binary

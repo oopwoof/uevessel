@@ -1,0 +1,101 @@
+name: build-plugin
+
+# Vessel CI pipeline — PLACEHOLDER
+# Pre-v0.1: only runs doc / format checks because the plugin source tree does not exist yet.
+# When v0.1 lands Source/VesselCore + Source/VesselEditor, the UE matrix job is uncommented.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  docs-lint:
+    name: Docs & format checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify docs tree structure
+        run: |
+          set -e
+          test -f README.md
+          test -f AGENTS.md
+          test -f LICENSE
+          test -d docs/product
+          test -d docs/engineering
+          test -d docs/process
+          echo "OK: docs tree present"
+
+      - name: No forbidden phrases in public files
+        env:
+          # Read patterns from env so the raw strings don't appear literally
+          # in the workflow file (which would self-trigger the check).
+          FORBIDDEN_RE: ${{ vars.FORBIDDEN_BRAND_REGEX }}
+        run: |
+          set -e
+          # Fallback regex built piece-by-piece so no full brand name appears inline.
+          : "${FORBIDDEN_RE:=$(printf '%s' 'Var' 'sapura')"\|"$(printf '%s' 'mi' 'Ho' 'Yo')"\|"$(printf '%s' 'HoYo' 'verse')"\|"$(printf '%s' 'Shadow Pat' 'rol')}"
+          if grep -riE "$FORBIDDEN_RE" \
+               --include="*.md" --include="*.h" --include="*.cpp" \
+               --include="*.cs" --include="*.ini" \
+               --exclude-dir=".git" --exclude-dir=".github" .; then
+            echo "::error::Forbidden branding found in public files"
+            exit 1
+          fi
+          echo "OK: no forbidden phrases"
+
+      - name: No API keys in tracked files
+        run: |
+          set -e
+          # Skip the workflow itself (contains the pattern as a regex).
+          if grep -rE 'sk-ant-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}' \
+               --exclude-dir=.git --exclude-dir=.github .; then
+            echo "::error::Potential API key in tracked files"
+            exit 1
+          fi
+          echo "OK: no obvious API keys"
+
+  clang-format:
+    name: C++ format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check if any C++ sources exist
+        id: has_cpp
+        run: |
+          if find . -name "*.cpp" -o -name "*.h" 2>/dev/null | head -1 | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run clang-format
+        if: steps.has_cpp.outputs.present == 'true'
+        uses: jidicula/clang-format-action@v4.11.0
+        with:
+          clang-format-version: '17'
+          check-path: '.'
+
+  # --- UE build matrix · enabled when Source/ is populated ---
+  # ue-build:
+  #   name: UE ${{ matrix.ue }} / ${{ matrix.os }}
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       ue: ['5.5', '5.7']
+  #       os: [windows-2022]
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Set up UE
+  #       # self-hosted runner with UE installed, or use a community action
+  #       run: echo "TBD: bootstrap UE ${{ matrix.ue }}"
+  #     - name: Build plugin
+  #       run: |
+  #         # RunUAT BuildPlugin -Plugin=... -Package=Out -TargetPlatforms=Win64
+  #         echo "TBD"
+  #     - name: Run Automation Tests
+  #       run: |
+  #         # UnrealEditor-Cmd.exe ... -ExecCmds="Automation RunTests Vessel.;Quit"
+  #         echo "TBD"
