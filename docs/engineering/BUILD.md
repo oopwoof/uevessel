@@ -179,29 +179,56 @@ AllowHttp=true   ; 明确声明接受非 HTTPS,仅限 localhost
 
 ## 5. 插件内部结构
 
+**当前(v0.1-alpha.1 scaffold)**:
+
 ```
 Plugins/Vessel/
-├── Vessel.uplugin                    # plugin metadata
+├── Vessel.uplugin                    # plugin metadata (3 modules declared)
+└── Source/
+    ├── VesselCore/                   # runtime-safe module skeleton
+    │   ├── VesselCore.Build.cs
+    │   ├── Public/
+    │   │   ├── VesselCore.h          # module class
+    │   │   └── VesselLog.h           # 6 log categories + VESSEL_LOG macro
+    │   └── Private/
+    │       └── VesselCore.cpp
+    ├── VesselEditor/                 # editor-only module skeleton
+    │   ├── VesselEditor.Build.cs
+    │   ├── Public/
+    │   │   └── VesselEditor.h
+    │   └── Private/
+    │       └── VesselEditor.cpp
+    └── VesselTests/                  # automation tests (DeveloperTool type)
+        ├── VesselTests.Build.cs
+        └── Private/
+            ├── VesselTestsModule.cpp
+            └── Tests/
+                └── HelloWorldTest.cpp
+```
+
+**目标(v0.1 交付时)**:
+
+```
+Plugins/Vessel/
+├── Vessel.uplugin
 ├── Config/
 │   └── FilterPlugin.ini              # shipping filter
 ├── Source/
-│   ├── VesselCore/                   # runtime-safe
-│   │   ├── VesselCore.Build.cs
+│   ├── VesselCore/
 │   │   ├── Public/
 │   │   │   ├── ToolRegistry/
 │   │   │   ├── Transaction/
 │   │   │   ├── Validator/
 │   │   │   └── LlmAdapter/
 │   │   └── Private/
-│   ├── VesselEditor/                 # editor-only
-│   │   ├── VesselEditor.Build.cs
+│   ├── VesselEditor/
 │   │   ├── Public/
 │   │   │   ├── SessionMachine/
 │   │   │   ├── Harness/
 │   │   │   ├── HITL/
 │   │   │   └── Widgets/
 │   │   └── Private/
-│   └── VesselTests/                  # automation tests (opt-in)
+│   └── VesselTests/
 ├── Resources/
 │   └── Icon128.png
 └── Content/                          # demo assets (optional)

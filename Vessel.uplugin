@@ -1,0 +1,36 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0-alpha.1",
+	"FriendlyName": "Vessel",
+	"Description": "An open harness for building AI agents that assist Unreal Engine development.",
+	"Category": "Editor",
+	"CreatedBy": "Vessel contributors",
+	"CreatedByURL": "https://github.com/oopwoof/uevessel",
+	"DocsURL": "https://github.com/oopwoof/uevessel/tree/main/docs",
+	"MarketplaceURL": "",
+	"SupportURL": "https://github.com/oopwoof/uevessel/issues",
+	"EngineVersion": "5.5.0",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "VesselCore",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "VesselEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "VesselTests",
+			"Type": "DeveloperTool",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
+		}
+	]
+}

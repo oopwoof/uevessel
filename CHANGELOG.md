@@ -28,6 +28,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Security
 - 文档级别规定 API Key 必须走 `EditorPerProjectUserSettings`,不能进入 `DefaultVessel.ini`
 
+### Code (v0.1-alpha.1 scaffold)
+- `Vessel.uplugin` —— 3 个模块声明(VesselCore / VesselEditor / VesselTests)
+- `Source/VesselCore/` 骨架:module class、6 个 log categories、`VESSEL_LOG` 宏
+- `Source/VesselEditor/` 骨架:module class
+- `Source/VesselTests/` 骨架 + `Vessel.Smoke.HelloWorld` automation test(确认两个 module 都正确加载)
+- 所有 `.Build.cs` 显式 `bEnableExceptions = false`(符合 CODING_STYLE §7)
+
 ---
 
 ## 版本规划(待交付)
