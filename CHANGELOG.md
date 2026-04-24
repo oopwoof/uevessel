@@ -52,6 +52,18 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Vessel.Llm.MockProvider.{FixtureHit, DefaultFallback, RegistryLookup}` —— 三态覆盖
 - `Vessel.Util.JsonSanitizer.{BareObject, FencedJson, PreludeText, Nested, BracesInStrings, Unbalanced, NoObject}` —— 七种输入场景
 
+### Code (Tool Registry infrastructure · Step 3a)
+- `EVesselResultCode` + `FVesselResult<T>` + `FVesselVoidResult` —— 错误承载,7 种错误码对齐 [TOOL_REGISTRY §5.1](docs/engineering/TOOL_REGISTRY.md)
+- `FVesselParameterSchema` / `FVesselToolSchema` —— 纯 POD,不依赖反射头文件
+- `FVesselReflectionScanner` —— `TObjectIterator<UClass>` + `TFieldIterator<UFunction>`;支持 string / int / float / bool / array / map / enum / struct(`Guid` / `SoftObjectPath` 有 well-known format);`WITH_EDITOR` 守卫(runtime build 会跳过扫描并 log warning)
+- `FVesselToolRegistry` —— 进程级 singleton,FRWLock 保护,提供 `ScanAll` / `FindSchema` / `ListToolNames` / `InjectSchemaForTest` / `ToJsonString`
+
+### Tests (8 more automation tests · Step 3a)
+- `UVesselTestToolFixture`(fixture UCLASS)—— 三个 UFUNCTION:`FixtureRead`(读类)、`FixtureIrreversibleWrite`(带 irreversible + batch_eligible + tags)、`NotAnAgentTool`(负样本)
+- `Vessel.Registry.Scanner.{Discovers, MetaReadback, PolicyFlags}` —— 扫描器覆盖
+- `Vessel.Registry.ToolRegistry.{ScanAll, Inject, JsonShape}` —— 注册表覆盖
+- `Vessel.Registry.Result.Basics` —— `FVesselResult` + `VesselResultCodeToString`
+
 ---
 
 ## 版本规划(待交付)
