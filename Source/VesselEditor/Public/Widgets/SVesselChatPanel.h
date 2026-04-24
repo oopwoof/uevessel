@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Session/VesselApprovalTypes.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -11,17 +12,20 @@ class SEditableTextBox;
 class SMultiLineEditableTextBox;
 class SButton;
 class SScrollBox;
+class SWidgetSwitcher;
+
+class FVesselSessionMachine;
+class FVesselSlateApprovalClient;
+struct FVesselSessionOutcome;
 
 /**
- * The main Vessel dock panel: a native Slate SDockTab content widget with
- * three stacked regions — agent status header, chat/diff split, and an
- * approval action bar. Step 4c.1 is a visual skeleton: all state is local,
- * callbacks are stubs. Step 4c.2 wires this to FVesselSessionMachine via a
- * Slate-hosted IVesselApprovalClient.
- *
- * Not built on Editor Utility Widget (UMG) — see ARCHITECTURE.md §4.1 ADR.
+ * Top-level Vessel dock panel. Owns the per-tab session machine, a Slate
+ * approval client, and the HITL UI. See ARCHITECTURE.md §4.1 (native Slate
+ * SDockTab, not EUW) and HITL_PROTOCOL.md §2.2 for the approval contract.
  */
-class VESSELEDITOR_API SVesselChatPanel : public SCompoundWidget
+class VESSELEDITOR_API SVesselChatPanel
+	: public SCompoundWidget
+	, public TSharedFromThis<SVesselChatPanel>
 {
 public:
 	SLATE_BEGIN_ARGS(SVesselChatPanel) {}
@@ -29,7 +33,7 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-	// Minimal public API for future session integration.
+	// Public API for future bridge / external drivers.
 	void AppendUserMessage(const FString& Text);
 	void AppendAssistantMessage(const FString& Text);
 	void SetAgentStatus(const FString& StatusLabel);
@@ -37,21 +41,56 @@ public:
 	void SetCostLabel(const FString& CostText);
 
 private:
-	// --- Handlers (stubs in Step 4c.1) ---
+	// --- Session lifecycle ---
+	void BeginSession(const FString& UserInput);
+	void OnSessionComplete(const FVesselSessionOutcome& Outcome);
+
+	// --- HITL ---
+	void HandleApprovalRequested(
+		const FVesselApprovalRequest& Request,
+		TSharedRef<TPromise<FVesselApprovalDecision>> Promise);
+	void EnterApprovalMode(const FVesselApprovalRequest& Request);
+	void LeaveApprovalMode();
+	void EnterRejectReasonMode();
+	void LeaveRejectReasonMode();
+
+	// --- Input handlers ---
 	FReply HandleSendClicked();
 	FReply HandleApproveClicked();
 	FReply HandleRejectClicked();
 	FReply HandleEditClicked();
+	FReply HandleConfirmRejectClicked();
+	FReply HandleCancelRejectClicked();
 
+	// --- Helpers ---
 	void AppendMessageInternal(const FString& Prefix, const FString& Text);
+	void SetApprovalButtonsEnabled(bool bEnabled);
 
-	// --- Widget refs (held so we can mutate state cheaply) ---
-	TSharedPtr<SEditableTextBox>   InputBox;
-	TSharedPtr<SScrollBox>         ChatScroll;
-	TSharedPtr<STextBlock>         AgentStatus;
-	TSharedPtr<STextBlock>         CostLabel;
+	// Which view of the action bar is showing.
+	enum class EBarView : uint8
+	{
+		Normal,         // Edit / Reject / Approve
+		RejectReason,   // reason input + Confirm/Cancel
+	};
+	void SetBarView(EBarView View);
+
+private:
+	// --- Widget refs ---
+	TSharedPtr<SEditableTextBox>          InputBox;
+	TSharedPtr<SButton>                   SendButton;
+	TSharedPtr<SScrollBox>                ChatScroll;
+	TSharedPtr<STextBlock>                AgentStatus;
+	TSharedPtr<STextBlock>                CostLabelWidget;
 	TSharedPtr<SMultiLineEditableTextBox> DiffArea;
-	TSharedPtr<SButton>            ApproveButton;
-	TSharedPtr<SButton>            RejectButton;
-	TSharedPtr<SButton>            EditButton;
+	TSharedPtr<SButton>                   ApproveButton;
+	TSharedPtr<SButton>                   RejectButton;
+	TSharedPtr<SButton>                   EditButton;
+	TSharedPtr<SWidgetSwitcher>           BarSwitcher;
+	TSharedPtr<SMultiLineEditableTextBox> RejectReasonInput;
+
+	// --- Session state ---
+	TSharedPtr<FVesselSessionMachine>     CurrentSession;
+	TSharedPtr<FVesselSlateApprovalClient> ApprovalClient;
+	TOptional<FVesselApprovalRequest>     PendingRequest;
+	TSharedPtr<TPromise<FVesselApprovalDecision>> PendingPromise;
 };

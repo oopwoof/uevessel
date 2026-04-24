@@ -172,6 +172,23 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **说明**:Slate widget 自动化测试需渲染循环,属 v0.2 改进范围。4c.1 通过模块启动 + 手动打开面板做 smoke 验证。
 
+### Code (Session ↔ Panel 桥接 + 真实 HITL 流 · Step 4c.2)
+- `FVesselSlateApprovalClient` —— `IVesselApprovalClient` 的 Slate 实现。收到 request 时,通过 `OnApprovalRequested` 多播把 `TPromise<FVesselApprovalDecision>` 丢给 widget;widget 在按钮回调里 SetValue 完成决策。**安全默认**:delegate 未绑 / 已有 pending → 立刻 auto-reject,session 不卡
+- `SVesselChatPanel` 接通 session:
+  - `HandleSendClicked` 创建 `FVesselSessionMachine` + `FVesselSlateApprovalClient`,`SetApprovalClient`,`RunAsync`;session 完成的 callback hop 回 game thread 后喂 `OnSessionComplete`
+  - `HandleApprovalRequested` 把 request 挂成 `PendingPromise`,UI 进入 approval 模式:diff 区显示 summary + args JSON、agent status 变 "awaiting approval",Approve/Reject 按钮 enable
+  - Approve → `SetValue(MakeApprove)` → session 继续
+  - Reject → 切换 `SWidgetSwitcher` 到 reason 输入视图;**强制 ≥5 字符**(对齐 HITL_PROTOCOL §4.1);Confirm → `SetValue(MakeReject)`
+  - Edit 按钮 Step 4c.2 仍 disabled(EditAndApprove UI 留 4c.3 或后续)
+- 会话生命周期防错:Send 期间 input / Send 按钮 disable,避免并发 session;session 完成后恢复
+
+### Tests (3 more automation tests · Step 4c.2)
+- `Vessel.HITL.Slate.NoDelegateAutoRejects` —— delegate 未绑 → 自动 Reject(session 不能卡)
+- `Vessel.HITL.Slate.DelegateFulfills` —— 绑定 delegate → promise 可正常 fulfill,HasPending 清零
+- `Vessel.HITL.Slate.SecondRequestAutoRejects` —— 并发第二请求立即 auto-reject,不队列化(避免死锁;队列由 UI 自己决定)
+
+**累计测试数**:66
+
 ---
 
 ## 版本规划(待交付)
