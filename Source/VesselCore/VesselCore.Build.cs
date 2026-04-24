@@ -23,6 +23,15 @@ public class VesselCore : ModuleRules
 		{
 		});
 
+		// Transaction scope (FScopedTransaction) lives in UnrealEd. VesselCore
+		// stays Runtime-compatible by conditionally linking UnrealEd only when
+		// the target builds the editor — the transaction scope is guarded with
+		// WITH_EDITOR at the source level, so non-editor builds compile cleanly.
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("UnrealEd");
+		}
+
 		// Vessel does not use exceptions; errors flow through FVesselResult<T>.
 		// See docs/engineering/CODING_STYLE.md §7.
 		bEnableExceptions = false;

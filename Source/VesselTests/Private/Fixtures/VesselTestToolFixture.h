@@ -7,6 +7,24 @@
 #include "VesselTestToolFixture.generated.h"
 
 /**
+ * Row struct used by DataTable tool tests. Small, stable, covers string/int/bool.
+ */
+USTRUCT()
+struct FVesselTestRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Title;
+
+	UPROPERTY()
+	int32 Age = 0;
+
+	UPROPERTY()
+	bool bActive = false;
+};
+
+/**
  * Static fixture class with AgentTool-marked UFUNCTIONs used by automation
  * tests. Lives in VesselTests so the real reflection scan observes it.
  *

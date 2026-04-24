@@ -64,6 +64,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Vessel.Registry.ToolRegistry.{ScanAll, Inject, JsonShape}` —— 注册表覆盖
 - `Vessel.Registry.Result.Basics` —— `FVesselResult` + `VesselResultCodeToString`
 
+### Code (Invoke pipeline + first tool · Step 3b)
+- `FVesselTransactionScope` —— RAII 包装 `FScopedTransaction`;策略:`IrreversibleHint` 赢过一切 → 跳过;否则 `RequiresApproval` 或 `Category` 含 "Write" → 开事务;只在 `WITH_EDITOR` 生效
+- `VesselCore.Build.cs` 条件依赖 `UnrealEd`(`if Target.bBuildEditor`)—— 保持 Runtime 兼容
+- `FVesselToolInvoker` —— `Invoke(name, argsJson, options)` 管线:registry lookup → json 清洗 + parse → 反射 param buffer 填充 → `FVesselTransactionScope` → `CDO->ProcessEvent` → return value JSON 化 → 清理。Step 3b 支持类型:FString / FName / int32 / int64 / bool / float / double / TArray
+- `UVesselDataTableTools::ReadDataTable` —— **第一个真实 agent tool**。可从 SoftObjectPath 加载 DataTable,按 RowNames 过滤(空数组返回全部),把每行 UPROPERTY 渲染为 JSON object。可测试入口 `ReadRowsJson(UDataTable*, ...)` 方便不走资产加载
+- `FVesselTestRow` USTRUCT —— 测试用的最小 DataTable 行类型,继承 `FTableRowBase`
+- `FixtureRead` 改为 echo 参数(用于验证 Invoker 端到端参数 round-trip)
+
+### Tests (10 more automation tests · Step 3b)
+- `Vessel.Registry.Invoker.{NotFound, RoundTrip, MissingParam, WrongType, FencedArgs, TransactionPolicy}` —— Invoker 六维度覆盖
+- `Vessel.Tools.DataTable.{ReadAll, ReadSelected, NullTable, UnknownRow}` —— DataTable tool 四场景
+
+**累计测试数**:32 (1 smoke + 13 settings/mock/sanitizer + 8 registry/scanner + 10 invoker/datatable)
+
 ---
 
 ## 版本规划(待交付)

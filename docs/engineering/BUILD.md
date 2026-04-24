@@ -179,31 +179,39 @@ AllowHttp=true   ; 明确声明接受非 HTTPS,仅限 localhost
 
 ## 5. 插件内部结构
 
-**当前(v0.1-alpha.1 scaffold)**:
+**当前(v0.1-alpha.1,Step 3b 末尾)**:
 
 ```
 Plugins/Vessel/
-├── Vessel.uplugin                    # plugin metadata (3 modules declared)
+├── Vessel.uplugin                    # plugin metadata (3 modules)
 └── Source/
-    ├── VesselCore/                   # runtime-safe module skeleton
-    │   ├── VesselCore.Build.cs
+    ├── VesselCore/
+    │   ├── VesselCore.Build.cs       # conditional UnrealEd dep if bBuildEditor
     │   ├── Public/
-    │   │   ├── VesselCore.h          # module class
-    │   │   └── VesselLog.h           # 6 log categories + VESSEL_LOG macro
+    │   │   ├── VesselCore.h
+    │   │   ├── VesselLog.h           # 6 log categories + VESSEL_LOG
+    │   │   ├── Settings/             # Project + User + Auth
+    │   │   ├── Llm/                  # Provider interface, types, registry,
+    │   │   │                         # mock, json sanitizer (via Util)
+    │   │   ├── Registry/             # Schema, scanner, tool registry, invoker
+    │   │   ├── Transaction/          # FVesselTransactionScope (WITH_EDITOR)
+    │   │   ├── Tools/                # Built-in tool UCLASSes (DataTable, ...)
+    │   │   └── Util/                 # VesselJsonSanitizer
     │   └── Private/
-    │       └── VesselCore.cpp
-    ├── VesselEditor/                 # editor-only module skeleton
+    │       ├── VesselCore.cpp        # registers built-in LLM providers
+    │       ├── Settings/ · Llm/ · Registry/ · Transaction/ · Tools/ · Util/
+    │       └── Llm/AnthropicProvider.{h,cpp}  # private impl
+    ├── VesselEditor/                 # Editor-only module (UI lands in step 4+)
     │   ├── VesselEditor.Build.cs
-    │   ├── Public/
-    │   │   └── VesselEditor.h
-    │   └── Private/
-    │       └── VesselEditor.cpp
-    └── VesselTests/                  # automation tests (DeveloperTool type)
+    │   ├── Public/VesselEditor.h
+    │   └── Private/VesselEditor.cpp
+    └── VesselTests/                  # DeveloperTool module, never ships
         ├── VesselTests.Build.cs
         └── Private/
             ├── VesselTestsModule.cpp
-            └── Tests/
-                └── HelloWorldTest.cpp
+            ├── Fixtures/             # USTRUCT row + fixture UCLASS w/ AgentTool
+            └── Tests/                # Smoke, settings, mock, sanitizer,
+                                      # scanner, registry, invoker, datatable
 ```
 
 **目标(v0.1 交付时)**:
