@@ -132,6 +132,16 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **累计测试数**:52
 
+### Tests (6 more automation tests · Step 4a.3 · 端到端)
+- `Vessel.Session.E2E.SingleStepApprove` —— Planner mock → 调 `FixtureRead` → Judge approve → Done;**额外验 JSONL 日志 5 种 record type 都落盘**
+- `Vessel.Session.E2E.PlannerMalformed` —— Planner 返非 JSON → Failed + reason 含 "Planner" / "plan"
+- `Vessel.Session.E2E.UnknownTool` —— Planner 指向 registry 外的 tool → Failed + reason 含 tool 名
+- `Vessel.Session.E2E.JudgeReject` —— Judge Reject → Failed + reject reason 上浮到 Outcome.Reason
+- `Vessel.Session.E2E.ConsecutiveReviseBudget` —— `MaxConsecutiveRevise=2` + Judge 永远 Revise → Failed + reason 含 revise/Consecutive
+- `Vessel.Session.E2E.EmptyPlan` —— Planner 返 `{"plan":[]}` → Done + `StepsExecuted=0`
+
+**累计测试数**:58(Session Machine 端到端 6 维覆盖)
+
 ---
 
 ## 版本规划(待交付)
