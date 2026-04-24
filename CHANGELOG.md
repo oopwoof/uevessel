@@ -189,6 +189,21 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **累计测试数**:66
 
+### Code (v0.1 收尾:Designer Assistant 默认 agent · Step 5)
+- `FVesselAgentTemplates` —— 内置模板工厂:`MakeDesignerAssistant()` + `FindByName()` + `ListNames()`;v0.1 发布随插件的是单个 `designer-assistant`,v0.2 加 `asset-pipeline` + `dev-chat`
+- **designer-assistant** 模板属性:
+  - System prompt: role-focused for game designer workflow,强调 "先读后写 / 不发明字段 / 每步带 reasoning"
+  - Judge rubric: DataTable schema 不外扩,超 scope 直接 Reject
+  - AllowedCategories: `DataTable` + `Meta`(明确不含 `DataTable/Write` —— write 需要进一步 allow)
+- `SVesselChatPanel::BeginSession` 默认挂 designer-assistant(原本是 minimal fallback),让 Window → Vessel Chat 打开后的交互立刻有品牌化 prompt + 判断标准
+- 职责分层确认:LLM API key 解析不在 Panel 做,继续由 `FAnthropicProvider::SendAsync` + `FVesselAuth::GetAnthropicApiKey()` 负责;key 缺失会走 `ErrorCode=ConfigError` 并在 chat 里显示可读理由
+
+### Tests (2 more automation tests · Step 5)
+- `Vessel.Session.AgentTemplates.DesignerShape` —— 字段非空 + 类别列表正确 + 没有默认 allow write
+- `Vessel.Session.AgentTemplates.Lookup` —— FindByName 正向 + 未知名 fallback + ListNames 包含 designer
+
+**累计测试数**:68
+
 ---
 
 ## 版本规划(待交付)

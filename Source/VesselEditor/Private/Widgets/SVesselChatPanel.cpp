@@ -3,6 +3,7 @@
 #include "Widgets/SVesselChatPanel.h"
 
 #include "VesselLog.h"
+#include "Session/VesselAgentTemplates.h"
 #include "Session/VesselApprovalClient.h"
 #include "Session/VesselSessionConfig.h"
 #include "Session/VesselSessionMachine.h"
@@ -282,6 +283,8 @@ void SVesselChatPanel::BeginSession(const FString& UserInput)
 	SetDiffPreview(TEXT("(Agent is thinking — diff will appear when a tool wants to run.)"));
 
 	FVesselSessionConfig Config = MakeDefaultSessionConfig(FString());
+	// Override the minimal fallback template with the shipping Designer Assistant.
+	Config.AgentTemplate = FVesselAgentTemplates::MakeDesignerAssistant();
 	if (Config.ProviderId.IsEmpty())
 	{
 		Config.ProviderId = TEXT("mock");
