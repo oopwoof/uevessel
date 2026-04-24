@@ -35,6 +35,23 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Source/VesselTests/` 骨架 + `Vessel.Smoke.HelloWorld` automation test(确认两个 module 都正确加载)
 - 所有 `.Build.cs` 显式 `bEnableExceptions = false`(符合 CODING_STYLE §7)
 
+### Code (Settings + LLM Adapter foundation)
+- `UVesselProjectSettings`(`config=Vessel, defaultconfig`)—— team-shared 非敏感字段(Provider / Endpoint / Model / NonSecretHeaders / bAllowHttp)
+- `UVesselUserSettings`(`config=EditorPerProjectUserSettings`)—— per-user 敏感字段(AnthropicApiKey / GatewayAuthorization / AzureApiKey),带 `PasswordField=true` meta
+- `FVesselAuth` —— 敏感值解析优先级(env var > user settings,**不**回落到 project settings);`IsEndpointPermitted` 硬编码 localhost-only HTTP 规则;`Redact` 日志安全
+- `ILlmProvider` + `FLlmRequest` / `FLlmResponse` / `FLlmToolCall` 等 POD 类型
+- `FLlmProviderRegistry` —— 进程级 singleton,`FRWLock` 保护,提供 `InjectMock` 给 CI
+- `FVesselMockProvider`(ARCHITECTURE.md §2.4 的 v0.1 必交付)—— 按"最后 user message 内容"命中 fixture,默认 fallback 报 ConfigError
+- `FAnthropicProvider` —— 真实 HTTP 骨架,调用 `FHttpModule`,读取 `UVesselProjectSettings` + `FVesselAuth`;TODO(step4) 标注 tool_use 序列化
+- `FVesselJsonSanitizer` —— 剥 ```json fence + 提取首个平衡 `{...}` 对象,尊重字符串引号内的 `{` / `}`
+
+### Tests (8 new automation tests)
+- `Vessel.Settings.ConfigScope` —— 防回归:API key 字段留在 EditorPerProjectUserSettings
+- `Vessel.Settings.EndpointPermit` —— https / http / localhost / 非 localhost 覆盖
+- `Vessel.Settings.Redact` —— redact 输出不含原值且带长度
+- `Vessel.Llm.MockProvider.{FixtureHit, DefaultFallback, RegistryLookup}` —— 三态覆盖
+- `Vessel.Util.JsonSanitizer.{BareObject, FencedJson, PreludeText, Nested, BracesInStrings, Unbalanced, NoObject}` —— 七种输入场景
+
 ---
 
 ## 版本规划(待交付)
