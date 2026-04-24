@@ -12,7 +12,9 @@
 #include "Registry/VesselToolInvoker.h"
 #include "Registry/VesselToolRegistry.h"
 
+#include "Session/VesselApprovalClient.h"
 #include "Session/VesselPlannerPrompts.h"
+#include "Session/VesselRejectionSink.h"
 #include "Session/VesselSessionLog.h"
 
 #include "Async/Async.h"
@@ -77,6 +79,13 @@ bool FVesselSessionMachine::Init(const FVesselSessionConfig& InConfig)
 		return false;
 	}
 
+	// Default approval client: auto-approve. Safe for mock-driven tests; real
+	// interactive sessions must SetApprovalClient with the Slate panel client.
+	if (!ApprovalClient.IsValid())
+	{
+		ApprovalClient = MakeShared<FVesselAutoApprovalClient>();
+	}
+
 	TSharedRef<FJsonObject> Hdr = MakeShared<FJsonObject>();
 	Hdr->SetStringField(TEXT("provider"),      Config.ProviderId);
 	Hdr->SetStringField(TEXT("planner_model"), Config.PlannerModel);
@@ -139,6 +148,23 @@ void FVesselSessionMachine::RequestAbort(const FString& InReason)
 {
 	bAbortRequested = true;
 	AbortReason = InReason;
+}
+
+void FVesselSessionMachine::SetApprovalClient(TSharedRef<IVesselApprovalClient> InClient)
+{
+	checkf(IsInGameThread(), TEXT("SetApprovalClient must be called on the Game Thread"));
+	checkf(!bRunInvoked,     TEXT("SetApprovalClient must be called before RunAsync"));
+	ApprovalClient = InClient;
+}
+
+bool FVesselSessionMachine::StepNeedsApproval(const FVesselToolSchema& Schema)
+{
+	// Mirrors HITL_PROTOCOL.md §1.1 rule set: approval required if any of
+	//   RequiresApproval | IrreversibleHint | ToolCategory contains "Write".
+	if (Schema.bRequiresApproval) return true;
+	if (Schema.bIrreversibleHint) return true;
+	if (Schema.Category.Contains(TEXT("Write"), ESearchCase::IgnoreCase)) return true;
+	return false;
 }
 
 // =========================================================================
@@ -316,7 +342,134 @@ void FVesselSessionMachine::EnterExecuting()
 	LogStateTransition(Prev, CurrentState);
 
 	const FVesselPlanStep& Step = CurrentPlan.Steps[CurrentStepIndex];
+	const FVesselToolSchema* Schema = FVesselToolRegistry::Get().FindSchema(Step.ToolName);
+	if (!Schema)
+	{
+		// Should have been caught by EnterToolSelection, but defend anyway.
+		EnterFailed(FString::Printf(TEXT("Step %d references unknown tool '%s'."),
+			Step.StepIndex, *Step.ToolName.ToString()));
+		return;
+	}
 
+	if (StepNeedsApproval(*Schema))
+	{
+		RequestApprovalForStep(Step, *Schema);
+		return;
+	}
+
+	InvokeStep(Step);
+}
+
+void FVesselSessionMachine::RequestApprovalForStep(
+	const FVesselPlanStep& Step, const FVesselToolSchema& Schema)
+{
+	FVesselApprovalRequest Request;
+	Request.SessionId         = Config.SessionId;
+	Request.StepIndex         = Step.StepIndex;
+	Request.ToolName          = Step.ToolName;
+	Request.ToolCategory      = Schema.Category;
+	Request.ArgsJson          = Step.ArgsJson;
+	Request.Reasoning         = Step.Reasoning;
+	Request.bIrreversibleHint = Schema.bIrreversibleHint;
+
+	// Log the pending approval separately from the decision so observers can
+	// distinguish "waiting on user" from "user clicked".
+	if (Log)
+	{
+		TSharedRef<FJsonObject> P = MakeShared<FJsonObject>();
+		P->SetStringField(TEXT("tool"),       Step.ToolName.ToString());
+		P->SetNumberField(TEXT("step_index"), Step.StepIndex);
+		P->SetStringField(TEXT("category"),   Schema.Category);
+		P->SetBoolField(  TEXT("irreversible"), Schema.bIrreversibleHint);
+		Log->AppendRecord(TEXT("ApprovalRequested"), P);
+	}
+
+	TWeakPtr<FVesselSessionMachine> Weak = AsWeak();
+	const FVesselApprovalRequest RequestCopy = Request;
+	const FVesselPlanStep StepCopy = Step;
+
+	ApprovalClient->RequestDecisionAsync(Request).Next(
+		[Weak, RequestCopy, StepCopy](FVesselApprovalDecision Decision)
+	{
+		if (TSharedPtr<FVesselSessionMachine> Pinned = Weak.Pin())
+		{
+			Pinned->DispatchOnGameThread(
+				[Pinned, RequestCopy, StepCopy, D = MoveTemp(Decision)]() mutable
+				{
+					Pinned->LogApprovalDecision(RequestCopy, D);
+					Pinned->HandleApprovalDecision(StepCopy, D);
+				});
+		}
+	});
+}
+
+void FVesselSessionMachine::LogApprovalDecision(
+	const FVesselApprovalRequest& Request, const FVesselApprovalDecision& Decision)
+{
+	if (!Log)
+	{
+		return;
+	}
+	TSharedRef<FJsonObject> P = MakeShared<FJsonObject>();
+	P->SetStringField(TEXT("tool"),        Request.ToolName.ToString());
+	P->SetNumberField(TEXT("step_index"),  Request.StepIndex);
+	P->SetStringField(TEXT("decision"),    ApprovalDecisionKindToString(Decision.Kind));
+	P->SetStringField(TEXT("decider"),     Decision.DeciderId);
+	if (!Decision.RejectReason.IsEmpty())    P->SetStringField(TEXT("reject_reason"),    Decision.RejectReason);
+	if (!Decision.RevisedArgsJson.IsEmpty()) P->SetStringField(TEXT("revised_args_json"), Decision.RevisedArgsJson);
+	Log->AppendRecord(TEXT("ApprovalDecision"), P);
+}
+
+void FVesselSessionMachine::HandleApprovalDecision(
+	FVesselPlanStep Step, FVesselApprovalDecision Decision)
+{
+	switch (Decision.Kind)
+	{
+		case EVesselApprovalDecisionKind::Approve:
+		{
+			InvokeStep(Step);
+			return;
+		}
+
+		case EVesselApprovalDecisionKind::EditAndApprove:
+		{
+			// Swap in the revised args both locally and in the stored plan so
+			// subsequent logs / replay reflect what actually ran.
+			Step.ArgsJson = Decision.RevisedArgsJson;
+			if (CurrentPlan.Steps.IsValidIndex(CurrentStepIndex))
+			{
+				CurrentPlan.Steps[CurrentStepIndex].ArgsJson = Decision.RevisedArgsJson;
+			}
+			InvokeStep(Step);
+			return;
+		}
+
+		case EVesselApprovalDecisionKind::Reject:
+		default:
+		{
+			// Persist the rejection so future sessions learn from it.
+			FVesselApprovalRequest SinkRequest;
+			SinkRequest.SessionId    = Config.SessionId;
+			SinkRequest.StepIndex    = Step.StepIndex;
+			SinkRequest.ToolName     = Step.ToolName;
+			SinkRequest.ArgsJson     = Step.ArgsJson;
+			SinkRequest.Reasoning    = Step.Reasoning;
+			if (const FVesselToolSchema* S = FVesselToolRegistry::Get().FindSchema(Step.ToolName))
+			{
+				SinkRequest.ToolCategory      = S->Category;
+				SinkRequest.bIrreversibleHint = S->bIrreversibleHint;
+			}
+			FVesselRejectionSink::Record(SinkRequest, Decision);
+
+			EnterFailed(FString::Printf(TEXT("HITL reject: %s"),
+				Decision.RejectReason.IsEmpty() ? TEXT("(no reason given)") : *Decision.RejectReason));
+			return;
+		}
+	}
+}
+
+void FVesselSessionMachine::InvokeStep(const FVesselPlanStep& Step)
+{
 	FVesselToolInvoker::FInvokeOptions Options;
 	Options.SessionId = Config.SessionId;
 

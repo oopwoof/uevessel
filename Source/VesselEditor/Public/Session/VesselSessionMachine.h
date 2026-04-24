@@ -6,10 +6,12 @@
 #include "Async/Future.h"
 #include "Delegates/IDelegateInstance.h"
 
+#include "Session/VesselApprovalTypes.h"
 #include "Session/VesselSessionConfig.h"
 #include "Session/VesselSessionTypes.h"
 
 class ILlmProvider;
+class IVesselApprovalClient;
 class FVesselSessionLog;
 struct FLlmResponse;
 
@@ -63,6 +65,14 @@ public:
 	/** Plan as of the latest planning turn (empty before Planning completes). */
 	const FVesselPlan& GetCurrentPlan() const { return CurrentPlan; }
 
+	/**
+	 * Install the client that fulfills HITL approval requests. Must be set
+	 * before RunAsync is called. If left null, the session defaults to
+	 * FVesselAutoApprovalClient — safe for mock-driven automated tests, but
+	 * never for interactive use.
+	 */
+	void SetApprovalClient(TSharedRef<IVesselApprovalClient> InClient);
+
 	// Non-copyable, non-movable — holds file handles + delegate registrations.
 	FVesselSessionMachine(const FVesselSessionMachine&) = delete;
 	FVesselSessionMachine& operator=(const FVesselSessionMachine&) = delete;
@@ -75,6 +85,13 @@ private:
 	void HandlePlanningComplete(const FLlmResponse& Response);
 	void EnterToolSelection();
 	void EnterExecuting();
+
+	/** HITL gate helpers (see HITL_PROTOCOL.md §1). */
+	static bool StepNeedsApproval(const struct FVesselToolSchema& Schema);
+	void RequestApprovalForStep(const FVesselPlanStep& Step, const FVesselToolSchema& Schema);
+	void HandleApprovalDecision(FVesselPlanStep Step, FVesselApprovalDecision Decision);
+	void InvokeStep(const FVesselPlanStep& Step);
+
 	void HandleStepResult(const FName& Tool, const FString& ResultJson,
 		bool bWasError, const FString& ErrorMessage);
 	void EnterJudgeReview(const FString& ToolResultJson);
@@ -93,6 +110,8 @@ private:
 	void LogStepExecuted(const FVesselPlanStep& Step, const FString& ResultJson,
 		bool bWasError, const FString& ErrorMessage);
 	void LogJudgeVerdict(const FVesselJudgeVerdict& Verdict);
+	void LogApprovalDecision(const FVesselApprovalRequest& Request,
+		const FVesselApprovalDecision& Decision);
 	void LogSessionSummary(const FVesselSessionOutcome& Outcome);
 
 	// --- Async dispatch helper ---
@@ -120,6 +139,7 @@ private:
 	FDateTime StartedAt;
 
 	TSharedPtr<ILlmProvider> Provider;
+	TSharedPtr<IVesselApprovalClient> ApprovalClient;
 	TUniquePtr<FVesselSessionLog> Log;
 
 	FString AbortReason;

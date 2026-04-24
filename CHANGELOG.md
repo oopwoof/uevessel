@@ -142,6 +142,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **累计测试数**:58(Session Machine 端到端 6 维覆盖)
 
+### Code (HITL Gate · Step 4b)
+- `FVesselApprovalRequest` / `FVesselApprovalDecision` / `EVesselApprovalDecisionKind`(Approve / Reject / EditAndApprove)POD 类型
+- `IVesselApprovalClient` 抽象接口 + 三个内置实现:`FVesselAutoApprovalClient`(CI 默认)、`FVesselAutoRejectClient`(失败路径测试)、`FVesselScriptedApprovalClient`(按 tool name 逐一映射 + default 回落)
+- `FVesselRejectionSink` —— 两处持久化:`<Project>/AGENTS.md ## Known Rejections` 段(若 section 不存在自动创建,带 auto-managed 注释)+ `<Project>/Saved/VesselRejectionArchive/<yyyy-mm>.jsonl` 月度结构化归档
+- `FVesselSessionMachine::SetApprovalClient` —— 必须在 `RunAsync` 之前调用;未设置时默认 `FVesselAutoApprovalClient`(仅限 CI / mock 场景)
+- `FVesselSessionMachine::StepNeedsApproval(Schema)` —— 三条触发规则对齐 HITL_PROTOCOL §1.1:`RequiresApproval` / `IrreversibleHint` / Category 含 "Write"
+- `EnterExecuting` 分叉:需审批 → `RequestApprovalForStep` async → `HandleApprovalDecision` 回跳 game thread:
+  - Approve → `InvokeStep`(原 invoke 逻辑)
+  - EditAndApprove → 用 `RevisedArgsJson` 替换 step args(同步到 `CurrentPlan` 让 replay 看到实际执行内容)→ InvokeStep
+  - Reject → `FVesselRejectionSink::Record` 沉淀 → `EnterFailed`
+- 新增 JSONL log record type:`ApprovalRequested`、`ApprovalDecision`
+
+### Tests (5 more automation tests · Step 4b)
+- `Vessel.HITL.Predicate.RequiresApproval` —— 三条触发规则 + 纯读路径负样本
+- `Vessel.HITL.E2E.ApprovePath` —— Scripted Approve → Done + JSONL 含 ApprovalRequested/Decision
+- `Vessel.HITL.E2E.RejectSinksToAgentsMd` —— Reject → Failed + AGENTS.md `## Known Rejections` + 月度 archive JSONL 落盘;测试"快照+恢复"不污染 repo
+- `Vessel.HITL.E2E.EditAndApprove` —— Scripted edit → stored plan args 同步更新 + JSONL 含 revised args
+- `Vessel.HITL.E2E.ReadOnlyBypass` —— 纯读 tool 下 ApprovalClient **零查询**
+
+**累计测试数**:63
+
 ---
 
 ## 版本规划(待交付)
