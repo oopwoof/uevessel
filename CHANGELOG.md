@@ -103,6 +103,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **累计测试数**:40(1 smoke + 13 settings/mock/sanitizer + 8 registry/scanner + 10 invoker/datatable 3b + 8 step 3c tools)
 
+### Code (Session Machine foundations · Step 4a.1)
+- `FVesselSessionTypes.h` —— POD 类型:`EVesselSessionState`(8 态 FSM)、`EVesselSessionOutcomeKind`(5 种终止)、`FVesselPlanStep` / `FVesselPlan` / `FVesselJudgeVerdict` / `FVesselSessionOutcome`;配套字符串转换
+- `FVesselSessionConfig.h` —— 三层合并后的 session 配置:`FVesselSessionBudget`(industrial 默认)、`FVesselAgentTemplate`(带 `MakeMinimalFallback()`)、`FVesselSessionConfig`。辅助 `GenerateSessionId()` + `MakeDefaultSessionConfig()` 从 `UVesselProjectSettings` 填充默认
+- `FVesselSessionLog` —— JSONL append-only 日志;`IPlatformFile::OpenWrite(bAppend=true, bAllowRead=true)` 解决 Gemini 指出的 Windows 文件锁问题;每条 record 写完立刻 flush(崩溃最多丢最后一条,**不会**半行损坏);`FCriticalSection` 保护多 session tick 并发
+- Session 文件路径:`<Project>/Saved/AgentSessions/<SessionId>.jsonl`(符合 ARCHITECTURE / SESSION_MACHINE 承诺)
+
+### Tests (4 more automation tests · Step 4a.1)
+- `Vessel.Session.Log.Basic` —— 打开 → append 两条 record → close,验证文件存在 + 两行合法 JSON + 每行含 type/ts/session/payload
+- `Vessel.Session.Log.Reopen` —— `Open` 是 idempotent,重开关掉旧 handle 切到新 session
+- `Vessel.Session.Config.Default` —— `GenerateSessionId` 唯一递增;`MakeDefaultSessionConfig` 所有关键字段非空
+- `Vessel.Session.Types.Strings` —— 三个枚举转字符串稳定
+
+**累计测试数**:44
+
 ---
 
 ## 版本规划(待交付)
