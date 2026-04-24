@@ -38,7 +38,7 @@
 - [ ] HITL Gate — 写操作默认需审批,Reject-with-reason 写入文件
 
 **Surface (Layer 3)**
-- [ ] Editor Utility Widget — 聊天 / diff / 批准拒绝,单 agent 类型
+- [ ] 原生 Slate Dock Panel(`SDockTab`)— 聊天 / diff / 批准拒绝,单 agent 类型
 
 **内置工具(3–5 个,聚焦策划场景)**
 - [ ] `ReadDataTable`
@@ -57,7 +57,7 @@
 - [ ] 30 秒 demo 视频(YouTube + B 站双发)
 
 **工程基建**
-- [ ] GitHub Actions CI:插件编译检查(至少 UE 5.3)
+- [ ] GitHub Actions CI:插件编译检查(最低 UE 5.5,matrix 跑 5.5 / 5.7)
 - [ ] Apache 2.0 LICENSE
 - [ ] CHANGELOG.md 从 v0.0.1 起写
 - [ ] Issue / PR 模板

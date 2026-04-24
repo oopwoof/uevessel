@@ -11,7 +11,7 @@
 英文 tagline(用于 GitHub / Twitter):
 > *An open harness for building AI agents that assist Unreal Engine development — designer config, asset pipeline, automated testing, and NPC simulation scaffolding.*
 
-**物理形态**:Vessel 是一个 UE Editor 内置的停靠面板(Editor Utility Widget) —— 聊天输入框 + Agent 状态可视化 + Diff 预览视图 + HITL 审批按钮。用户**不离开 Editor、不写代码**:在面板里描述意图 → 看 agent 的 plan → 预览 diff → Approve / Reject / Edit → 改动经 `FScopedTransaction` 写入。此外还有命令行 TUI(开发者)、CI Commandlet(自动化)、MCP Server(外部 LLM)三个辅助 surface,但**策划 / TA 日常只需认 Editor 面板这一个**。
+**物理形态**:Vessel 是一个 UE Editor 内置的原生 Slate 停靠面板(`SDockTab`) —— 聊天输入框 + Agent 状态可视化 + Diff 预览视图 + HITL 审批按钮。用户**不离开 Editor、不写代码**:在面板里描述意图 → 看 agent 的 plan → 预览 diff → Approve / Reject / Edit → 改动经 `FScopedTransaction` 写入。此外还有命令行 TUI(开发者)、CI Commandlet(自动化)、MCP Server(外部 LLM)三个辅助 surface,但**策划 / TA 日常只需认 Editor 面板这一个**。
 
 ---
 
