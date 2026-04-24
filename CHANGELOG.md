@@ -163,6 +163,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **累计测试数**:63
 
+### Code (Slate Dock Panel 骨架 · Step 4c.1)
+- `SVesselChatPanel` —— 纯 C++ Slate widget(**非** EUW / UMG,对齐 ARCHITECTURE.md §4.1 ADR);布局 = Header(agent + status + cost)/ `SSplitter` 垂直切(chat history 上 60% / diff preview 下 40%)/ approval 栏(Edit · Reject with reason · Approve & Execute 三按钮,默认 disabled)
+- 最小公共 API:`AppendUserMessage` / `AppendAssistantMessage` / `SetAgentStatus` / `SetDiffPreview` / `SetCostLabel` —— 供 Step 4c.2 的 session-to-UI bridge 消费
+- `VesselTabIds::ChatPanel` namespace 常量
+- `VesselEditor::StartupModule` 通过 `FGlobalTabmanager::RegisterNomadTabSpawner` 挂 dock tab 到 Workspace / Tools 分类;`UToolMenus::RegisterStartupCallback` 加 Window 菜单项 "Vessel Chat"
+- 所有按钮回调 Step 4c.1 都是 stub(log 一行),真实 session 集成在 Step 4c.2
+
+**说明**:Slate widget 自动化测试需渲染循环,属 v0.2 改进范围。4c.1 通过模块启动 + 手动打开面板做 smoke 验证。
+
 ---
 
 ## 版本规划(待交付)

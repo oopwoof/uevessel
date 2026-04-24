@@ -2,16 +2,82 @@
 
 #include "VesselEditor.h"
 #include "VesselLog.h"
+#include "Widgets/SVesselChatPanel.h"
+#include "Widgets/VesselTabIds.h"
+
+#include "Framework/Docking/TabManager.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Modules/ModuleManager.h"
+#include "ToolMenus.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "WorkspaceMenuStructure.h"
+#include "WorkspaceMenuStructureModule.h"
+
+#define LOCTEXT_NAMESPACE "VesselEditorModule"
+
+namespace VesselEditorModuleDetail
+{
+	/** Build the dock tab hosting the chat panel. */
+	static TSharedRef<SDockTab> SpawnChatPanelTab(const FSpawnTabArgs& /*Args*/)
+	{
+		return SNew(SDockTab)
+			.TabRole(ETabRole::NomadTab)
+			.Label(LOCTEXT("VesselChatTabLabel", "Vessel"))
+			[
+				SNew(SVesselChatPanel)
+			];
+	}
+
+	/** Add a Window menu entry so users can open the panel. */
+	static void RegisterWindowMenuEntry()
+	{
+		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(TEXT("LevelEditor.MainMenu.Window"));
+		if (!Menu)
+		{
+			return;
+		}
+		FToolMenuSection& Section = Menu->FindOrAddSection(TEXT("Vessel"));
+		Section.AddMenuEntry(
+			TEXT("VesselChatPanelOpen"),
+			LOCTEXT("VesselWindowMenuLabel",   "Vessel Chat"),
+			LOCTEXT("VesselWindowMenuTooltip", "Open the Vessel agent chat + HITL panel."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([]()
+			{
+				FGlobalTabmanager::Get()->TryInvokeTab(FTabId(VesselTabIds::ChatPanel));
+			})));
+	}
+}
 
 void FVesselEditorModule::StartupModule()
 {
 	UE_LOG(LogVessel, Log, TEXT("VesselEditor module started."));
+
+	FGlobalTabmanager::Get()
+		->RegisterNomadTabSpawner(
+			VesselTabIds::ChatPanel,
+			FOnSpawnTab::CreateStatic(&VesselEditorModuleDetail::SpawnChatPanelTab))
+		.SetDisplayName(LOCTEXT("VesselChatTabDisplayName", "Vessel"))
+		.SetTooltipText(LOCTEXT("VesselChatTabTooltip",
+			"Vessel — agent chat + HITL approval panel."))
+		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory());
+
+	// Deferred to first tick so ToolMenus subsystem has finished bootstrapping.
+	UToolMenus::RegisterStartupCallback(
+		FSimpleMulticastDelegate::FDelegate::CreateStatic(
+			&VesselEditorModuleDetail::RegisterWindowMenuEntry));
 }
 
 void FVesselEditorModule::ShutdownModule()
 {
 	UE_LOG(LogVessel, Log, TEXT("VesselEditor module shutting down."));
+
+	if (FGlobalTabmanager::Get().IsValid())
+	{
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(VesselTabIds::ChatPanel);
+	}
 }
 
 IMPLEMENT_MODULE(FVesselEditorModule, VesselEditor);
+
+#undef LOCTEXT_NAMESPACE
