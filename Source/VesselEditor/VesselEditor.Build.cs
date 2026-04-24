@@ -26,6 +26,8 @@ public class VesselEditor : ModuleRules
 			"ToolMenus",
 			"InputCore",
 			"WorkspaceMenuStructure",
+			"DataValidation",   // UEditorValidatorSubsystem (UE 5.x)
+			"AssetRegistry",
 		});
 
 		bEnableExceptions = false;

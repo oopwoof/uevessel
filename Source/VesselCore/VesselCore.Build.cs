@@ -17,6 +17,7 @@ public class VesselCore : ModuleRules
 			"HTTP",
 			"Json",
 			"JsonUtilities",
+			"AssetRegistry",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

@@ -117,3 +117,75 @@ bool FVesselDataTableUnknownRow::RunTest(const FString& /*Parameters*/)
 	TestTrue(TEXT("Known row still present"), Json.Contains(TEXT("Row_Beta")));
 	return true;
 }
+
+/**
+ * WriteRowJson inserts a new row and it appears in subsequent reads.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselDataTableWriteInsert,
+	"Vessel.Tools.DataTable.WriteInsert",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselDataTableWriteInsert::RunTest(const FString& /*Parameters*/)
+{
+	TStrongObjectPtr<UDataTable> Table = VesselDataTableTestDetail::MakeInMemoryTable();
+	if (!Table.IsValid()) { return false; }
+
+	const FString NewRowJson = TEXT("{\"Title\":\"Delta\",\"Age\":99,\"bActive\":true}");
+	const bool bOk = UVesselDataTableTools::WriteRowJson(Table.Get(), FName(TEXT("Row_Delta")), NewRowJson);
+	TestTrue(TEXT("WriteRowJson reports success"), bOk);
+
+	const FString Json = UVesselDataTableTools::ReadRowsJson(Table.Get(), TArray<FName>());
+	TestTrue(TEXT("Row_Delta visible in read-back"), Json.Contains(TEXT("Row_Delta")));
+	TestTrue(TEXT("Delta Title persisted"),         Json.Contains(TEXT("\"Delta\"")));
+	TestTrue(TEXT("Delta Age=99 persisted"),        Json.Contains(TEXT("99")));
+	return true;
+}
+
+/**
+ * WriteRowJson on an existing row replaces its contents.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselDataTableWriteReplace,
+	"Vessel.Tools.DataTable.WriteReplace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselDataTableWriteReplace::RunTest(const FString& /*Parameters*/)
+{
+	TStrongObjectPtr<UDataTable> Table = VesselDataTableTestDetail::MakeInMemoryTable();
+	if (!Table.IsValid()) { return false; }
+
+	const FString UpdatedJson = TEXT("{\"Title\":\"AlphaPrime\",\"Age\":21,\"bActive\":false}");
+	const bool bOk = UVesselDataTableTools::WriteRowJson(Table.Get(), FName(TEXT("Row_Alpha")), UpdatedJson);
+	TestTrue(TEXT("WriteRowJson replace succeeds"), bOk);
+
+	TArray<FName> Just;
+	Just.Add(FName(TEXT("Row_Alpha")));
+	const FString Json = UVesselDataTableTools::ReadRowsJson(Table.Get(), Just);
+	TestTrue(TEXT("Row_Alpha still present"),          Json.Contains(TEXT("Row_Alpha")));
+	TestTrue(TEXT("Replaced Title visible"),           Json.Contains(TEXT("\"AlphaPrime\"")));
+	TestFalse(TEXT("Old Title (\"Alpha\") removed"),   Json.Contains(TEXT("\"Alpha\"") TEXT(",\"Age\":20")));
+	return true;
+}
+
+/**
+ * Invalid JSON / missing fields → WriteRowJson returns false, table untouched.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselDataTableWriteRejectsBadJson,
+	"Vessel.Tools.DataTable.WriteRejectsBadJson",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselDataTableWriteRejectsBadJson::RunTest(const FString& /*Parameters*/)
+{
+	TStrongObjectPtr<UDataTable> Table = VesselDataTableTestDetail::MakeInMemoryTable();
+	if (!Table.IsValid()) { return false; }
+
+	const bool bOk = UVesselDataTableTools::WriteRowJson(
+		Table.Get(), FName(TEXT("Row_Rubbish")), TEXT("not a json"));
+	TestFalse(TEXT("Rejects non-JSON input"), bOk);
+
+	const FString Json = UVesselDataTableTools::ReadRowsJson(Table.Get(), TArray<FName>());
+	TestFalse(TEXT("Bad row not inserted"), Json.Contains(TEXT("Row_Rubbish")));
+	return true;
+}

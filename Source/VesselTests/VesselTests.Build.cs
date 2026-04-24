@@ -14,11 +14,13 @@ public class VesselTests : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"VesselCore",
+			"VesselEditor",  // for ValidatorTools tests
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"AutomationController",
+			"AssetRegistry",
 		});
 
 		bEnableExceptions = false;

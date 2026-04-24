@@ -89,6 +89,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - MockProvider tests 去掉 `Future.Wait() + Future.Get()` 范式,改 `Future.Get()` 单调用 —— 该模板若被真 HTTP provider 抄走会死锁 game thread
 - 测试 DataTable 用 **`TStrongObjectPtr<UDataTable>`** 包装,避免未来 latent test GC 悬空
 
+### Code (Step 3c · 剩余 4 个 v0.1 tool)
+- `UVesselDataTableTools::WriteDataTableRow` —— 第二个 DataTable tool,`DataTable/Write` 分类,`RequiresApproval=true`。通过 `FJsonObjectConverter::JsonObjectToUStruct` 把任意 JSON 映射到 row struct,走 `Modify()` + `GetNonConstRowMap()` + `HandleDataTableChanged` 三件套。`WITH_EDITOR` 守卫
+- `UVesselAssetTools::ListAssets` —— IAssetRegistry 过滤 + JSON 数组输出
+- `UVesselAssetTools::ReadAssetMetadata` —— 不加载 asset body,直接读 `FAssetData` 的 class / package / tags
+- `UVesselValidatorTools::RunAssetValidator`(VesselEditor 模块)—— 调 `UEditorValidatorSubsystem::IsObjectValidWithContext`,收集 errors/warnings 返 JSON
+- `VesselCore.Build.cs` 增加 `AssetRegistry` public dep;`VesselEditor.Build.cs` 增加 `DataValidation` + `AssetRegistry`;`VesselTests.Build.cs` 增加 `VesselEditor` public dep(测试需访问 Validator tool 头文件)
+
+### Tests (8 more automation tests · Step 3c)
+- `Vessel.Tools.DataTable.{WriteInsert, WriteReplace, WriteRejectsBadJson}` —— WriteRowJson 的插入 / 替换 / 非法输入三态
+- `Vessel.Tools.Asset.{ListShape, ListUnknownPath, MetadataMissing}` —— ListAssets 形状 + 空路径;ReadAssetMetadata 不存在的 asset
+- `Vessel.Tools.Validator.{MissingAsset, ReportShape}` —— RunAssetValidator 空 asset + 返回值形状
+
+**累计测试数**:40(1 smoke + 13 settings/mock/sanitizer + 8 registry/scanner + 10 invoker/datatable 3b + 8 step 3c tools)
+
 ---
 
 ## 版本规划(待交付)

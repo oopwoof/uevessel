@@ -3,6 +3,7 @@
 #include "Tools/VesselDataTableTools.h"
 
 #include "VesselLog.h"
+#include "Util/VesselJsonSanitizer.h"
 
 #include "Engine/DataTable.h"
 #include "UObject/SoftObjectPath.h"
@@ -13,6 +14,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
+#include "JsonObjectConverter.h"
 
 namespace VesselDataTableDetail
 {
@@ -133,4 +135,91 @@ FString UVesselDataTableTools::ReadDataTable(const FString& AssetPath, const TAr
 		return FString(TEXT("{}"));
 	}
 	return ReadRowsJson(Table, RowNames);
+}
+
+bool UVesselDataTableTools::WriteRowJson(UDataTable* Table, FName RowName, const FString& RowJson)
+{
+#if WITH_EDITOR
+	if (!Table)
+	{
+		UE_LOG(LogVesselRegistry, Warning, TEXT("WriteRowJson: null table"));
+		return false;
+	}
+	UScriptStruct* RowStruct = Table->GetRowStruct();
+	if (!RowStruct)
+	{
+		UE_LOG(LogVesselRegistry, Warning, TEXT("WriteRowJson: DataTable has no RowStruct"));
+		return false;
+	}
+	if (RowName.IsNone())
+	{
+		UE_LOG(LogVesselRegistry, Warning, TEXT("WriteRowJson: RowName is None"));
+		return false;
+	}
+
+	TSharedPtr<FJsonObject> RowObj;
+	if (!FVesselJsonSanitizer::ParseAsObject(RowJson, RowObj) || !RowObj.IsValid())
+	{
+		UE_LOG(LogVesselRegistry, Warning, TEXT("WriteRowJson: RowJson failed to parse"));
+		return false;
+	}
+
+	// Stage a temp row buffer and fill it from JSON.
+	const int32 StructSize = RowStruct->GetStructureSize();
+	TArray<uint8> TempBuffer;
+	TempBuffer.SetNumZeroed(StructSize);
+	RowStruct->InitializeStruct(TempBuffer.GetData());
+
+	const bool bJsonOk = FJsonObjectConverter::JsonObjectToUStruct(
+		RowObj.ToSharedRef(), RowStruct, TempBuffer.GetData(), 0, 0);
+	if (!bJsonOk)
+	{
+		RowStruct->DestroyStruct(TempBuffer.GetData());
+		UE_LOG(LogVesselRegistry, Warning,
+			TEXT("WriteRowJson: JsonObjectToUStruct failed for row '%s'"), *RowName.ToString());
+		return false;
+	}
+
+	// FScopedTransaction records only objects that call Modify() before mutation.
+	// See TOOL_REGISTRY.md §4 "Tool author responsibility".
+	Table->Modify();
+
+	TMap<FName, uint8*>& RowMap = Table->GetNonConstRowMap();
+	if (uint8** Existing = RowMap.Find(RowName))
+	{
+		RowStruct->DestroyStruct(*Existing);
+		FMemory::Free(*Existing);
+		RowMap.Remove(RowName);
+	}
+	uint8* NewRow = static_cast<uint8*>(FMemory::Malloc(StructSize));
+	RowStruct->InitializeStruct(NewRow);
+	RowStruct->CopyScriptStruct(NewRow, TempBuffer.GetData());
+	RowMap.Add(RowName, NewRow);
+
+	Table->HandleDataTableChanged(RowName);
+
+	RowStruct->DestroyStruct(TempBuffer.GetData());
+	return true;
+#else
+	UE_LOG(LogVesselRegistry, Warning, TEXT("WriteRowJson is editor-only."));
+	return false;
+#endif
+}
+
+bool UVesselDataTableTools::WriteDataTableRow(
+	const FString& AssetPath, FName RowName, const FString& RowJson)
+{
+#if WITH_EDITOR
+	FSoftObjectPath Soft(AssetPath);
+	UDataTable* Table = Cast<UDataTable>(Soft.TryLoad());
+	if (!Table)
+	{
+		UE_LOG(LogVesselRegistry, Warning,
+			TEXT("WriteDataTableRow: asset '%s' could not be loaded as UDataTable."), *AssetPath);
+		return false;
+	}
+	return WriteRowJson(Table, RowName, RowJson);
+#else
+	return false;
+#endif
 }

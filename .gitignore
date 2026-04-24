@@ -59,6 +59,13 @@ Saved/VesselMetrics/
 Saved/VesselRejectionArchive/
 
 # =====================================================================
+# Claude Code
+# =====================================================================
+# Local per-user Claude Code settings (permissions, hooks, env) must stay local.
+# Shared project-level settings in .claude/settings.json CAN be committed if desired.
+.claude/settings.local.json
+
+# =====================================================================
 # Secrets
 # =====================================================================
 .env
