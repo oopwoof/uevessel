@@ -202,6 +202,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Vessel.Session.AgentTemplates.DesignerShape` —— 字段非空 + 类别列表正确 + 没有默认 allow write
 - `Vessel.Session.AgentTemplates.Lookup` —— FindByName 正向 + 未知名 fallback + ListNames 包含 designer
 
+### Fix (Gemini 3 Pro Preview Step 4c/5 review)
+- **[致命]** `SVesselChatPanel::~SVesselChatPanel` 在 pending promise 未解决时强制 `SetValue(Reject)` —— 用户关面板时 session 不再死锁在 Future.Get
+- **[高危]** `FVesselSlateApprovalClient::RequestDecisionAsync` 在非 game thread 调用时走 `AsyncTask(GameThread)` 包装再触发 `OnApprovalRequested`;game thread 直接同步保持测试确定性
+- **[高危]** 移除 `SVesselChatPanel : public TSharedFromThis<SVesselChatPanel>` 冗余继承 —— `SCompoundWidget` 已通过 `SWidget` 间接继承,菱形会让 `AsShared()` ambiguous。`SharedThis(this)` 继续可用
+- `FVesselSlateApprovalClient::bPending` 改 **`std::atomic<bool>`** + `compare_exchange_strong` 实现并发 CAS;避免跨线程竞争
+- `VesselEditor::ShutdownModule` 增加 `UToolMenus` 菜单 section 清理(`RemoveSection("Vessel")` + `UnregisterOwnerByName`)+ `UObjectInitialized()` 守卫
+- `SVesselChatPanel::AppendMessageInternal` 增加 **200 条上限**,超限滚前删首条 —— 长 session 不再堆积 widget
+- 新增测试 `Vessel.Session.AgentTemplates.AllowedCategoryPrefixMatch` 证明 `AllowedCategories=["DataTable"]` 通过 prefix 匹配自动覆盖 `"DataTable/Write"`;钉死 Gemini 误读过的语义不再变(Designer Assistant 能真实调用 WriteDataTableRow)
+
+**累计测试数**:69
+
 **累计测试数**:68
 
 ---

@@ -28,6 +28,9 @@
 
 namespace VesselChatPanelDetail
 {
+	/** Cap on how many message widgets we keep in ChatScroll — prevents long sessions from bloating Slate. */
+	static constexpr int32 MaxChatMessages = 200;
+
 	/** Best-effort short rendering of approval request for the diff area. */
 	static FString BuildApprovalSummary(const FVesselApprovalRequest& Request)
 	{
@@ -49,6 +52,26 @@ namespace VesselChatPanelDetail
 		Summary += FString::Printf(TEXT("\nArgs JSON:\n%s\n"), *Request.ArgsJson);
 		return Summary;
 	}
+}
+
+SVesselChatPanel::~SVesselChatPanel()
+{
+	// CRITICAL: if the tab is closed while an approval is pending, the session
+	// machine is waiting on a future that would never resolve without this.
+	// Fulfill as Reject with a clear reason; the session's normal reject path
+	// then terminates the session gracefully.
+	if (PendingPromise.IsValid())
+	{
+		PendingPromise->SetValue(FVesselApprovalDecision::MakeReject(
+			TEXT("Vessel panel was closed while an approval was pending."),
+			TEXT("slate-panel:dtor")));
+		PendingPromise.Reset();
+	}
+	PendingRequest.Reset();
+	// Release the session machine; its destructor unregisters its own
+	// OnEditorClose handle and closes the JSONL log.
+	CurrentSession.Reset();
+	ApprovalClient.Reset();
 }
 
 void SVesselChatPanel::Construct(const FArguments& /*InArgs*/)
@@ -231,6 +254,13 @@ void SVesselChatPanel::Construct(const FArguments& /*InArgs*/)
 void SVesselChatPanel::AppendMessageInternal(const FString& Prefix, const FString& Text)
 {
 	if (!ChatScroll.IsValid()) { return; }
+
+	// Cap total messages so a long session doesn't accumulate thousands of widgets.
+	while (ChatScroll->GetChildren()->Num() >= VesselChatPanelDetail::MaxChatMessages)
+	{
+		ChatScroll->RemoveSlot(ChatScroll->GetChildren()->GetChildAt(0));
+	}
+
 	ChatScroll->AddSlot().Padding(2.f)
 	[
 		SNew(STextBlock)

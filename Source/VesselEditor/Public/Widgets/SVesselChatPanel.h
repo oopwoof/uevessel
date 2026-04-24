@@ -23,13 +23,16 @@ struct FVesselSessionOutcome;
  * approval client, and the HITL UI. See ARCHITECTURE.md §4.1 (native Slate
  * SDockTab, not EUW) and HITL_PROTOCOL.md §2.2 for the approval contract.
  */
-class VESSELEDITOR_API SVesselChatPanel
-	: public SCompoundWidget
-	, public TSharedFromThis<SVesselChatPanel>
+// SCompoundWidget already derives from SWidget which is TSharedFromThis<SWidget>;
+// an explicit TSharedFromThis<SVesselChatPanel> would make AsShared() ambiguous.
+// `SharedThis(this)` works correctly as-is via SWidget's built-in support.
+class VESSELEDITOR_API SVesselChatPanel : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SVesselChatPanel) {}
 	SLATE_END_ARGS()
+
+	virtual ~SVesselChatPanel() override;
 
 	void Construct(const FArguments& InArgs);
 

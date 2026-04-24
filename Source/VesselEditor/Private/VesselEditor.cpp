@@ -9,6 +9,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Modules/ModuleManager.h"
 #include "ToolMenus.h"
+#include "UObject/UObjectGlobals.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
@@ -17,6 +18,9 @@
 
 namespace VesselEditorModuleDetail
 {
+	/** Owner tag for all menu extensions so we can bulk-remove on shutdown. */
+	static const FName VesselMenuOwner = TEXT("VesselEditorModule.Menus");
+
 	/** Build the dock tab hosting the chat panel. */
 	static TSharedRef<SDockTab> SpawnChatPanelTab(const FSpawnTabArgs& /*Args*/)
 	{
@@ -62,7 +66,7 @@ void FVesselEditorModule::StartupModule()
 			"Vessel — agent chat + HITL approval panel."))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory());
 
-	// Deferred to first tick so ToolMenus subsystem has finished bootstrapping.
+	// Deferred to first tick so the ToolMenus subsystem has finished bootstrapping.
 	UToolMenus::RegisterStartupCallback(
 		FSimpleMulticastDelegate::FDelegate::CreateStatic(
 			&VesselEditorModuleDetail::RegisterWindowMenuEntry));
@@ -72,9 +76,29 @@ void FVesselEditorModule::ShutdownModule()
 {
 	UE_LOG(LogVessel, Log, TEXT("VesselEditor module shutting down."));
 
+	// Unregister the dock tab spawner so the Workspace → Tools entry goes away.
 	if (FGlobalTabmanager::Get().IsValid())
 	{
 		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(VesselTabIds::ChatPanel);
+	}
+
+	// Remove any menu extensions we added. Guarded because ShutdownModule can
+	// run after UObject shutdown during editor quit, where UToolMenus::Get()
+	// would touch destroyed globals.
+	if (UObjectInitialized())
+	{
+		if (UToolMenus* Menus = UToolMenus::Get())
+		{
+			// Owner-scoped unregister covers any extensions we tagged with
+			// VesselMenuOwner. The Window-menu section we added above is not
+			// owner-tagged in UE 5.5 (API does not surface FToolMenuOwner
+			// through FindOrAddSection), so we also explicitly drop our entry.
+			Menus->UnregisterOwnerByName(VesselEditorModuleDetail::VesselMenuOwner);
+			if (UToolMenu* WindowMenu = Menus->ExtendMenu(TEXT("LevelEditor.MainMenu.Window")))
+			{
+				WindowMenu->RemoveSection(TEXT("Vessel"));
+			}
+		}
 	}
 }
 

@@ -6,6 +6,8 @@
 #include "Async/Future.h"
 #include "Session/VesselApprovalClient.h"
 
+#include <atomic>
+
 /**
  * IVesselApprovalClient implementation that defers the decision to a Slate
  * widget (typically SVesselChatPanel). The client owns the TPromise for the
@@ -41,8 +43,10 @@ public:
 		const FVesselApprovalRequest& Request) override;
 
 	/** True while a request is awaiting a decision. */
-	bool HasPending() const { return bPending; }
+	bool HasPending() const { return bPending.load(std::memory_order_acquire); }
 
 private:
-	bool bPending = false;
+	// Atomic because RequestDecisionAsync may be called from a non-game thread
+	// while the previous request's resolution callback runs on the game thread.
+	std::atomic<bool> bPending{ false };
 };
