@@ -117,6 +117,21 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 **累计测试数**:44
 
+### Code (Planner prompts + FSM runner · Step 4a.2)
+- `FVesselPlannerPrompts` —— 构建 Planning / Judge `FLlmRequest`;过滤 tool(按 agent `AllowedCategories` / `DeniedTools`);解析 plan / judge 响应(走 `FVesselJsonSanitizer` 容 markdown fence);**Judge 解析失败默认 Reject**(safety-by-default)
+- `FVesselSessionMachine` —— 8 态显式 FSM(Idle/Planning/ToolSelection/Executing/JudgeReview/NextStep/Done/Failed);每个状态切换点**都查 budget** + abort;LLM async 回调通过 `AsyncTask(ENamedThreads::GameThread)` 回跳(尊重 Gemini 的 game-thread 警告);**TWeakPtr + TSharedFromThis** 模式防止回调在 session 被析构后触发
+- Tool error 路径:`(Tool, ErrorCode)` 计数,超 `RepeatErrorLimit` 断路器 → Failed;非断路场景回 Planning 带错误 directive
+- Judge Revise → 回 Planning 带 directive,连续 Revise 达 `MaxConsecutiveRevise` → Failed
+- `FEditorDelegates::OnEditorClose` hook(Gemini review 要求)—— Editor 关闭时 session 输出 `AbortedOnEditorClose`
+- 每个状态转换 + plan / step / verdict / summary 都写入 JSONL log
+
+### Tests (8 more automation tests · Step 4a.2)
+- `Vessel.Session.Prompts.{PlanParseOk, PlanParseFenced, PlanParseMissingField}` —— plan JSON 解析正/负路径
+- `Vessel.Session.Prompts.{JudgeParseApprove, JudgeParseRevise, JudgeParseReject, JudgeParseMalformedDefaultsReject}` —— judge 四种决策 + 安全默认
+- `Vessel.Session.Prompts.FilterByAllowedCategory` —— agent 模板 `AllowedCategories` 过滤生效
+
+**累计测试数**:52
+
 ---
 
 ## 版本规划(待交付)
