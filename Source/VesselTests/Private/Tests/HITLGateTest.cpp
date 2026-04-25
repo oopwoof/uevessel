@@ -243,6 +243,90 @@ bool FVesselHITLRejectSinksToAgentsMd::RunTest(const FString& /*Parameters*/)
 }
 
 // =============================================================================
+// Unit: System-generated rejections do NOT pollute AGENTS.md
+// =============================================================================
+//
+// Caught during v0.2 L5: panel destructor force-rejects a pending approval
+// (DeciderId="slate-panel:dtor") to keep the session from deadlocking on a
+// closed panel. That reject was sinking into AGENTS.md as if a user had
+// decided it, polluting project-level policy with lifecycle accidents.
+// Convention: any DeciderId containing ':' is system-generated; only
+// unprefixed ids ("user", "test-user", future "cli") count as human decisions.
+
+#include "Session/VesselRejectionSink.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselHITLSystemRejectArchiveOnly,
+	"Vessel.HITL.RejectionSink.SystemRejectsSkipAgentsMd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselHITLSystemRejectArchiveOnly::RunTest(const FString& /*Parameters*/)
+{
+	const FString AgentsPath = FVesselRejectionSink::GetAgentsMdPath();
+	FString AgentsBefore;
+	const bool bHadBefore = FFileHelper::LoadFileToString(AgentsBefore, *AgentsPath);
+
+	FVesselApprovalRequest Request;
+	Request.SessionId    = TEXT("vs-system-reject-test");
+	Request.StepIndex    = 1;
+	Request.ToolName     = FName(TEXT("WriteDataTableRow"));
+	Request.ToolCategory = TEXT("DataTable/Write");
+	Request.ArgsJson     = TEXT("{\"AssetPath\":\"/Game/Test\"}");
+	Request.Reasoning    = TEXT("test reasoning");
+
+	const FString SystemReason =
+		TEXT("Vessel panel was closed while an approval was pending.");
+	const FVesselApprovalDecision SystemDecision =
+		FVesselApprovalDecision::MakeReject(SystemReason, TEXT("slate-panel:dtor"));
+
+	FVesselRejectionSink::Record(Request, SystemDecision);
+
+	// AGENTS.md must NOT contain the system-generated reason.
+	FString AgentsAfter;
+	if (FFileHelper::LoadFileToString(AgentsAfter, *AgentsPath))
+	{
+		TestFalse(TEXT("AGENTS.md does NOT contain system-reject reason"),
+			AgentsAfter.Contains(SystemReason));
+		TestFalse(TEXT("AGENTS.md does NOT carry the slate-panel:dtor decider"),
+			AgentsAfter.Contains(TEXT("slate-panel:dtor")));
+	}
+	// If AGENTS.md didn't even exist before AND we correctly skipped writing,
+	// the file should not have been created.
+	if (!bHadBefore)
+	{
+		TestFalse(TEXT("AGENTS.md not created for system reject"),
+			FFileHelper::LoadFileToString(AgentsAfter, *AgentsPath));
+	}
+
+	// Archive MUST contain the system-generated reject (audit trail keeps it).
+	const FString ArchivePath =
+		FVesselRejectionSink::GetArchivePathForMonth(FDateTime::UtcNow());
+	FString ArchiveContents;
+	if (FFileHelper::LoadFileToString(ArchiveContents, *ArchivePath))
+	{
+		TestTrue(TEXT("Archive carries the system-generated reason"),
+			ArchiveContents.Contains(SystemReason));
+		TestTrue(TEXT("Archive carries the slate-panel:dtor decider"),
+			ArchiveContents.Contains(TEXT("slate-panel:dtor")));
+	}
+	else
+	{
+		AddError(TEXT("Archive file not created — system reject was dropped entirely"));
+	}
+
+	// Restore AGENTS.md to pre-test state.
+	if (bHadBefore)
+	{
+		FFileHelper::SaveStringToFile(AgentsBefore, *AgentsPath);
+	}
+	else
+	{
+		VesselHITLTestDetail::DeletePath(AgentsPath);
+	}
+	return true;
+}
+
+// =============================================================================
 // End-to-end: Edit-and-Approve replaces args
 // =============================================================================
 

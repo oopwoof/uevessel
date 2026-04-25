@@ -167,7 +167,25 @@ bool FVesselRejectionSink::Record(
 	{
 		return false;
 	}
-	const bool bMd      = AppendToAgentsMd(Request, Decision);
+
+	// Distinguish user-decided rejections from lifecycle / system rejections.
+	// AGENTS.md is project-level "do-not" guidance — only human decisions
+	// belong there. The monthly archive captures every reject for audit.
+	//
+	// Convention: system-generated DeciderIds use a `<namespace>:<event>`
+	// shape ("slate-panel:dtor", "slate-client:auto", "slate-client:gone").
+	// Human decisions are unprefixed ("user", "test-user", future "cli", etc).
+	// The single ':' character is the discriminator.
+	const bool bUserDecided = !Decision.DeciderId.Contains(TEXT(":"));
+
+	const bool bMd      = bUserDecided ? AppendToAgentsMd(Request, Decision) : false;
 	const bool bArchive = AppendToArchive(Request, Decision);
+
+	if (!bUserDecided)
+	{
+		UE_LOG(LogVesselHITL, Verbose,
+			TEXT("Rejection from '%s' archived only — not project policy."),
+			*Decision.DeciderId);
+	}
 	return bMd || bArchive;
 }
