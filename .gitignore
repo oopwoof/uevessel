@@ -85,3 +85,6 @@ __pycache__/
 # =====================================================================
 node_modules/
 .npm
+
+# Release-prep scratch (gh release create input)
+.release-notes.md
