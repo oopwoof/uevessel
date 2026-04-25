@@ -46,7 +46,7 @@
 - [ ] 已有对应 issue,或在 PR 描述里解释为什么直接 PR
 - [ ] 代码遵循 [CODING_STYLE.md](../engineering/CODING_STYLE.md)
 - [ ] 跑过 `clang-format -i` 且无残留 diff
-- [ ] 本地编译通过(UE 5.5 最低)
+- [ ] 本地编译通过(v0.1 仅 UE 5.7;5.5 / 5.6 兼容是 v0.2 目标)
 - [ ] 加了必要的 automation test(或解释为什么不加)
 - [ ] 不违反 [UX_PRINCIPLES.md](../product/UX_PRINCIPLES.md) 的反模式清单
 

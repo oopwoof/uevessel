@@ -627,6 +627,15 @@ void FVesselSessionMachine::EnterDone(const FString& FinalText)
 
 	LogSessionSummary(Outcome);
 
+	// Release the log file handle once the final SessionSummary record is on
+	// disk. After this call, post-mortem readers (UI, tests, ops tools) can
+	// open the JSONL without ERROR_SHARING_VIOLATION on Windows — IPlatformFile
+	// OpenWrite's bAllowRead share-mode does not include FILE_SHARE_WRITE,
+	// which would otherwise block any default reader while the writer handle
+	// is alive. Closing here also matches the product semantic: a Done
+	// session is observably terminal.
+	if (Log) { Log->Close(); }
+
 	if (!bPromiseSet)
 	{
 		bPromiseSet = true;
@@ -652,6 +661,10 @@ void FVesselSessionMachine::EnterFailed(const FString& Reason, EVesselSessionOut
 	}
 
 	LogSessionSummary(Outcome);
+
+	// Same rationale as EnterDone — release the handle now that no more
+	// records will be written.
+	if (Log) { Log->Close(); }
 
 	if (!bPromiseSet)
 	{
