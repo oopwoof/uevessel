@@ -57,7 +57,7 @@
 - [ ] 30 秒 demo 视频(YouTube + B 站双发)
 
 **工程基建**
-- [ ] GitHub Actions CI:插件编译检查(最低 UE 5.5,matrix 跑 5.5 / 5.7)
+- [ ] GitHub Actions CI:插件编译检查(v0.1 锁 UE 5.7;5.5 / 5.6 兼容验证留 v0.2)
 - [ ] Apache 2.0 LICENSE
 - [ ] CHANGELOG.md 从 v0.0.1 起写
 - [ ] Issue / PR 模板
@@ -98,6 +98,7 @@
 - [ ] 长期 Memory · SQLite FTS5 —— session 可检索
 - [ ] Reject-reason → `AGENTS.md` 的自动沉淀流
 - [ ] 一个 GitHub Actions 示范 workflow,用 Vessel commandlet 跑 nightly asset validator
+- [ ] **多版本兼容验证** — UE 5.5 / 5.6 实编 + 自动化测试通过,扩展 `EngineVersion` 最低承诺;CI matrix 加入 5.5 / 5.6
 
 ### 明确不做
 

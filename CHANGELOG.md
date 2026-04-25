@@ -25,7 +25,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - HITL Gate —— 默认 on,所有写操作必经 Slate 面板审批,Reject 理由自动沉淀到 `AGENTS.md`
 - Designer Assistant 默认模板 —— 开 Editor 即用,首发支持 DataTable + Asset + Validator 工具集
 - Mock LLM Provider —— 全部 69 个 automation tests 在 CI 上离线跑过,不烧真 API key
-- 5.5 最低 / 5.7 daily,模块兼容 Runtime + Editor 两种构建
+- 在 UE 5.7 上端到端验证;模块兼容 Runtime + Editor 两种构建。5.5 / 5.6 兼容是设计目标但未在本版本验证(留 v0.2)
 - 完整三册文档(产品 / 工程 / 协作)和 7 条 ADR 已 ship,任何贡献者都能从文档建立心智模型
 
 **Known limitations(已显式延后)**:

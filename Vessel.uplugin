@@ -10,7 +10,7 @@
 	"DocsURL": "https://github.com/oopwoof/uevessel/tree/main/docs",
 	"MarketplaceURL": "",
 	"SupportURL": "https://github.com/oopwoof/uevessel/issues",
-	"EngineVersion": "5.5.0",
+	"EngineVersion": "5.7.0",
 	"CanContainContent": false,
 	"IsBetaVersion": true,
 	"IsExperimentalVersion": false,

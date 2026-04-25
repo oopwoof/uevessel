@@ -18,6 +18,10 @@ public class VesselCore : ModuleRules
 			"Json",
 			"JsonUtilities",
 			"AssetRegistry",
+			// UVesselProjectSettings / UVesselUserSettings extend UDeveloperSettings;
+			// UE 5.7 enforces explicit linkage to the DeveloperSettings module
+			// where the parent class' virtual function symbols live.
+			"DeveloperSettings",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

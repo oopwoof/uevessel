@@ -6,7 +6,7 @@
 [![release](https://img.shields.io/github/v/release/oopwoof/uevessel?include_prereleases&label=release)](https://github.com/oopwoof/uevessel/releases)
 [![ci](https://github.com/oopwoof/uevessel/actions/workflows/build-plugin.yml/badge.svg)](https://github.com/oopwoof/uevessel/actions/workflows/build-plugin.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![UE](https://img.shields.io/badge/Unreal%20Engine-5.5%2B-lightgrey)](docs/engineering/BUILD.md)
+[![UE](https://img.shields.io/badge/Unreal%20Engine-5.7-lightgrey)](docs/engineering/BUILD.md)
 
 > ⚠ **v0.1.0-alpha.1** —— alpha 版本,API 仍可能动。Tool Registry / Session Machine / HITL Gate / Slate 面板已端到端打通(69 个 automation tests 覆盖)。 后续节奏见 [ROADMAP.md](docs/process/ROADMAP.md)、详细变更见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -72,7 +72,9 @@ Vessel 是一个 UE Editor 内的停靠面板:
 
 ## 快速开始(Quickstart)
 
-**前置**:Unreal Engine 5.5+,Anthropic API key(或企业 gateway / Azure OpenAI endpoint)。
+**前置**:Unreal Engine 5.7,Anthropic API key(或企业 gateway / Azure OpenAI endpoint)。
+
+> v0.1 仅在 UE 5.7 上验证。5.5 / 5.6 兼容是设计目标但未在本版本验证(见 [ROADMAP](docs/process/ROADMAP.md) v0.2)。
 
 ```bash
 cd <YourUnrealProject>/Plugins

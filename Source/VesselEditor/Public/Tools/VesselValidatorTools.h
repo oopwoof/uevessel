@@ -14,7 +14,7 @@
  * See docs/engineering/TOOL_REGISTRY.md §5 for error code semantics.
  */
 UCLASS()
-class UVesselValidatorTools : public UObject
+class VESSELEDITOR_API UVesselValidatorTools : public UObject
 {
 	GENERATED_BODY()
 
