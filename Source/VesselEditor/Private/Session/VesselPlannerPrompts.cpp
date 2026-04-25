@@ -3,6 +3,7 @@
 #include "Session/VesselPlannerPrompts.h"
 
 #include "VesselLog.h"
+#include "Session/VesselGuidesLoader.h"
 #include "Util/VesselJsonSanitizer.h"
 
 #include "Dom/JsonObject.h"
@@ -116,6 +117,17 @@ FLlmRequest FVesselPlannerPrompts::BuildPlanningRequest(
 	FString SystemText;
 	SystemText += Config.AgentTemplate.SystemPrompt;
 	SystemText += TEXT("\n\n");
+
+	// Project-level guides + past rejections from AGENTS.md. This closes
+	// the Reject → AGENTS.md → next-session feedback loop that's central
+	// to the Guides+Sensors thesis. Empty if no AGENTS.md or no entries.
+	const FString GuidesBlock = FVesselGuidesLoader::BuildProjectGuidesBlock();
+	if (!GuidesBlock.IsEmpty())
+	{
+		SystemText += GuidesBlock;
+		SystemText += TEXT("\n");
+	}
+
 	SystemText += TEXT("## Available tools (machine-readable schemas)\n");
 	SystemText += ToolsJson;
 	SystemText += TEXT("\n\n");
