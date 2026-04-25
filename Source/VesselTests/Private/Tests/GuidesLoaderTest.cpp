@@ -248,7 +248,77 @@ bool FVesselGuidesLoaderRecencyCap::RunTest(const FString& /*Parameters*/)
 	return true;
 }
 
-/* ─── Test 7: Planner request actually injects the guides block ─────── */
+/* ─── Test 7: Multi-line reason captures continuation lines ─────────── */
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselGuidesLoaderMultiLineReason,
+	"Vessel.Guides.Loader.MultiLineReasonAccumulates",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselGuidesLoaderMultiLineReason::RunTest(const FString& /*Parameters*/)
+{
+	// Reason that spans multiple lines, terminated by **session**.
+	FString Section;
+	Section += TEXT("## Known Rejections\n\n");
+	Section += TEXT("### 2026-04-25T00:00:00.000Z · tool=Foo · target=/Game/X\n");
+	Section += TEXT("**reason**: First line of explanation.\n");
+	Section += TEXT("Second line continues the reasoning.\n");
+	Section += TEXT("Third line ends the paragraph.\n");
+	Section += TEXT("**session**: vs-2026-04-25-0001, step 1\n");
+	Section += TEXT("**rejecter**: slate-panel\n");
+
+	const TArray<FVesselGuidesLoader::FRejectionEntry> Entries =
+		FVesselGuidesLoader::ParseRejections(Section);
+
+	TestEqual(TEXT("One entry parsed"), Entries.Num(), 1);
+	if (Entries.Num() < 1) return false;
+
+	TestTrue(TEXT("Reason has line 1"),
+		Entries[0].Reason.Contains(TEXT("First line of explanation")));
+	TestTrue(TEXT("Reason has line 2 (continuation)"),
+		Entries[0].Reason.Contains(TEXT("Second line continues")));
+	TestTrue(TEXT("Reason has line 3 (continuation)"),
+		Entries[0].Reason.Contains(TEXT("Third line ends")));
+	TestFalse(TEXT("Reason does not bleed into **session**"),
+		Entries[0].Reason.Contains(TEXT("vs-2026-04-25-0001")));
+	return true;
+}
+
+/* ─── Test 8: Multi-line reason still terminated by next ### header ─── */
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselGuidesLoaderMultiLineTerminatesAtNextEntry,
+	"Vessel.Guides.Loader.MultiLineReasonTerminatesAtNextEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselGuidesLoaderMultiLineTerminatesAtNextEntry::RunTest(const FString& /*Parameters*/)
+{
+	// Worst-case: rejection sink crashed mid-write, no **session** terminator.
+	// The next "### " entry header must still cleanly terminate the reason.
+	FString Section;
+	Section += TEXT("## Known Rejections\n\n");
+	Section += TEXT("### 2026-04-25T00:00:00.000Z · tool=Foo · target=/Game/X\n");
+	Section += TEXT("**reason**: First entry's reason.\n");
+	Section += TEXT("Continuation line.\n");
+	Section += TEXT("\n");
+	Section += TEXT("### 2026-04-26T00:00:00.000Z · tool=Bar · target=/Game/Y\n");
+	Section += TEXT("**reason**: Second entry's reason.\n");
+
+	const TArray<FVesselGuidesLoader::FRejectionEntry> Entries =
+		FVesselGuidesLoader::ParseRejections(Section);
+
+	TestEqual(TEXT("Two entries parsed"), Entries.Num(), 2);
+	if (Entries.Num() < 2) return false;
+
+	TestTrue(TEXT("[0] reason contains continuation"),
+		Entries[0].Reason.Contains(TEXT("Continuation line")));
+	TestFalse(TEXT("[0] reason does not bleed into [1]"),
+		Entries[0].Reason.Contains(TEXT("Second entry's reason")));
+	TestEqual(TEXT("[1] tool"), Entries[1].Tool, FString(TEXT("Bar")));
+	return true;
+}
+
+/* ─── Test 9: Planner request actually injects the guides block ─────── */
 
 #include "Registry/VesselToolSchema.h"
 #include "Session/VesselAgentTemplates.h"

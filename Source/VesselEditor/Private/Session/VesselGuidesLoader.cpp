@@ -2,12 +2,21 @@
 
 #include "Session/VesselGuidesLoader.h"
 
+#include "VesselLog.h"
+#include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 
 namespace VesselGuidesDetail
 {
 	static const TCHAR* kRejectionsHeader = TEXT("## Known Rejections");
+
+	/**
+	 * Hard cap on AGENTS.md size before we'll load it. Designers may paste
+	 * large blobs into the user-edited preamble; without a cap a 100MB
+	 * misclick blocks the Game Thread on first session boot.
+	 */
+	static constexpr int64 kMaxAgentsMdBytes = 1 * 1024 * 1024; // 1 MiB
 
 	/** Pull the "tool=Foo · target=Bar" tokens out of a "### ..." entry header line. */
 	static void ParseHeaderLine(const FString& Line, FString& OutTool, FString& OutTarget)
@@ -58,6 +67,21 @@ FString FVesselGuidesLoader::GetAgentsMdPath()
 FString FVesselGuidesLoader::ReadAgentsMd()
 {
 	const FString Path = GetAgentsMdPath();
+
+	const int64 Size = IFileManager::Get().FileSize(*Path);
+	if (Size < 0)
+	{
+		return FString(); // file does not exist
+	}
+	if (Size > VesselGuidesDetail::kMaxAgentsMdBytes)
+	{
+		UE_LOG(LogVesselHITL, Warning,
+			TEXT("AGENTS.md exceeds %lld byte cap (%lld bytes) — skipping guides "
+			     "injection. Trim the file or split history into archive JSONL."),
+			VesselGuidesDetail::kMaxAgentsMdBytes, Size);
+		return FString();
+	}
+
 	FString Contents;
 	if (!FFileHelper::LoadFileToString(Contents, *Path))
 	{
@@ -103,24 +127,34 @@ TArray<FVesselGuidesLoader::FRejectionEntry> FVesselGuidesLoader::ParseRejection
 	TArray<FString> Lines;
 	RejectionsSection.ParseIntoArrayLines(Lines, /*CullEmpty*/ false);
 
-	// Walk line-by-line. Each entry begins with "### " and the very next
-	// non-blank "**reason**:" line is its reason.
+	// State machine:
+	//   • "### " line  → flush previous entry, parse this one's header.
+	//   • "**reason**: <text>" line → seed reason, enter ReasonAccumulating.
+	//   • In ReasonAccumulating:
+	//       — "**xxx**:" (any other bold marker, e.g. **session**, **rejecter**)
+	//         → exit accumulator, ignore this line.
+	//       — "### " (next entry header) → exit accumulator, fall through.
+	//       — blank or any other line → append to Current.Reason as continuation.
+	//   • Outside ReasonAccumulating, non-### / non-reason lines are skipped.
 	FRejectionEntry Current;
 	bool bInEntry = false;
+	bool bAccumulatingReason = false;
 
-	auto Flush = [&Out, &Current, &bInEntry, MaxEntries]()
+	auto Flush = [&]()
 	{
 		if (bInEntry && (!Current.Tool.IsEmpty() || !Current.Reason.IsEmpty()))
 		{
+			Current.Reason.TrimEndInline();
 			Out.Add(Current);
 		}
 		Current = FRejectionEntry{};
 		bInEntry = false;
-		// Bound output. Caller may further trim.
-		if (Out.Num() >= MaxEntries)
-		{
-			Out.SetNum(MaxEntries);
-		}
+		bAccumulatingReason = false;
+	};
+
+	auto IsBoldMarker = [](const FString& Line)
+	{
+		return Line.StartsWith(TEXT("**")) && Line.Contains(TEXT("**:"));
 	};
 
 	for (const FString& Raw : Lines)
@@ -135,7 +169,6 @@ TArray<FVesselGuidesLoader::FRejectionEntry> FVesselGuidesLoader::ParseRejection
 			VesselGuidesDetail::ParseHeaderLine(Line, Current.Tool, Current.Target);
 			continue;
 		}
-
 		if (!bInEntry)
 		{
 			continue;
@@ -144,9 +177,27 @@ TArray<FVesselGuidesLoader::FRejectionEntry> FVesselGuidesLoader::ParseRejection
 		if (Line.StartsWith(TEXT("**reason**:")))
 		{
 			Current.Reason = VesselGuidesDetail::ParseReasonLine(Line);
+			bAccumulatingReason = true;
+			continue;
+		}
+
+		if (bAccumulatingReason)
+		{
+			if (IsBoldMarker(Line))
+			{
+				// Hit **session**: / **rejecter**: / etc — reason ends here.
+				bAccumulatingReason = false;
+				continue;
+			}
+			// Continuation line — preserve newline so multi-paragraph
+			// reasons read naturally in the LLM prompt.
+			if (!Current.Reason.IsEmpty())
+			{
+				Current.Reason += TEXT("\n");
+			}
+			Current.Reason += Line;
 		}
 	}
-	// Tail entry.
 	Flush();
 
 	if (Out.Num() > MaxEntries)
