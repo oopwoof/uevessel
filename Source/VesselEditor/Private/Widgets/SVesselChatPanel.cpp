@@ -220,12 +220,26 @@ void SVesselChatPanel::Construct(const FArguments& /*InArgs*/)
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)
 					[
 						SNew(STextBlock).Text(LOCTEXT("VesselRejectReasonPrompt",
-							"Reject reason (min 5 chars). Will be written to AGENTS.md."))
+							"Why are you rejecting? This is written to AGENTS.md and shown "
+							"to the agent on its next turn — concrete reasons help the agent "
+							"learn the project's policies."))
+						.AutoWrapText(true)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)
+					[
+						SNew(STextBlock).Text(LOCTEXT("VesselRejectReasonExamples",
+							"Examples:  • RowName violates the NPC_<Region>_<Type> convention\n"
+							"           • would overwrite production-balanced stats without VCS backup\n"
+							"           • Title is hardcoded Chinese — must go through LOC pipeline"))
+						.ColorAndOpacity(FLinearColor(0.65f, 0.65f, 0.65f, 1.0f))
+						.AutoWrapText(true)
 					]
 					+ SVerticalBox::Slot().AutoHeight()
 					[
 						SAssignNew(RejectReasonInput, SMultiLineEditableTextBox)
 						.AllowMultiLine(true)
+						.HintText(LOCTEXT("VesselRejectReasonHint",
+							"Describe what's wrong — at least one full sentence is best."))
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
 					[
@@ -507,11 +521,13 @@ void SVesselChatPanel::EnterRejectReasonMode()
 	{
 		RejectReasonInput->SetText(FText());
 	}
+	bShortReasonAcknowledged = false;
 	SetBarView(EBarView::RejectReason);
 }
 
 void SVesselChatPanel::LeaveRejectReasonMode()
 {
+	bShortReasonAcknowledged = false;
 	SetBarView(EBarView::Normal);
 }
 
@@ -557,14 +573,33 @@ FReply SVesselChatPanel::HandleConfirmRejectClicked()
 		return FReply::Handled();
 	}
 	const FString Reason = RejectReasonInput->GetText().ToString().TrimStartAndEnd();
-	if (Reason.Len() < 5)
+
+	// Hard floor: empty reasons are useless to AGENTS.md and to the next-turn
+	// LLM. Block them outright.
+	if (Reason.IsEmpty())
 	{
-		AppendAssistantMessage(TEXT("Reject reason must be at least 5 characters."));
+		AppendAssistantMessage(TEXT("Reject reason cannot be empty."));
 		return FReply::Handled();
 	}
+
+	// Soft warning: reasons ≤5 chars rarely teach the agent anything ("ok",
+	// "no", "测试"). First click warns + sets the ack flag; second click
+	// submits anyway (user has acknowledged the reason is thin).
+	if (Reason.Len() <= 5 && !bShortReasonAcknowledged)
+	{
+		bShortReasonAcknowledged = true;
+		AppendAssistantMessage(FString::Printf(
+			TEXT("Reason '%s' is short (%d chars). Concrete reasons help the agent "
+			     "learn project policies — see the examples above. Click Confirm "
+			     "Reject again to submit anyway."),
+			*Reason, Reason.Len()));
+		return FReply::Handled();
+	}
+
 	PendingPromise->SetValue(FVesselApprovalDecision::MakeReject(Reason, TEXT("user")));
 	PendingPromise.Reset();
 	PendingRequest.Reset();
+	bShortReasonAcknowledged = false;
 	LeaveRejectReasonMode();
 	LeaveApprovalMode();
 	SetAgentStatus(TEXT("Agent: rejected — finishing..."));

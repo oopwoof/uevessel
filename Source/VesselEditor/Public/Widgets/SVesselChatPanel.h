@@ -115,4 +115,12 @@ private:
 	TSharedPtr<FVesselSlateApprovalClient> ApprovalClient;
 	TOptional<FVesselApprovalRequest>     PendingRequest;
 	TSharedPtr<TPromise<FVesselApprovalDecision>> PendingPromise;
+
+	/**
+	 * Two-click guard for short reject reasons. First Confirm-Reject click
+	 * with a reason ≤5 chars surfaces a warning + sets this flag; the second
+	 * click submits even with the short reason. Reset whenever reject-reason
+	 * mode is entered/left so each new reject starts clean.
+	 */
+	bool bShortReasonAcknowledged = false;
 };
