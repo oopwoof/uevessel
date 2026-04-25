@@ -21,6 +21,16 @@ bool FVesselAgentTemplatesDesignerShape::RunTest(const FString& /*Parameters*/)
 	TestTrue(TEXT("Allowed includes Meta"),       T.AllowedCategories.Contains(TEXT("Meta")));
 	TestFalse(TEXT("Write not granted by default"),
 		T.AllowedCategories.Contains(TEXT("DataTable/Write")));
+
+	// Prevent regression of the "single-shot planning" instruction. The harness
+	// does NOT loop back to Planning between approved steps — the LLM must be
+	// told to plan the complete sequence in one response, otherwise it tends
+	// to plan only a preparatory read and stop. Caught during v0.2 L5 testing.
+	TestTrue(TEXT("System prompt explicitly mandates single-response planning"),
+		T.SystemPrompt.Contains(TEXT("COMPLETE sequence in ONE response")));
+	TestTrue(TEXT("System prompt explicitly states no re-prompting"),
+		T.SystemPrompt.Contains(TEXT("does NOT re-prompt"))
+		|| T.SystemPrompt.Contains(TEXT("not re-prompt")));
 	return true;
 }
 
