@@ -89,6 +89,15 @@ public:
 	const FVesselPlan& GetCurrentPlan() const { return CurrentPlan; }
 
 	/**
+	 * Cumulative estimated USD cost of every LLM call this session has made.
+	 * Updated synchronously inside HandlePlanningComplete / HandleJudgeComplete
+	 * after the corresponding response is parsed, so observers reading this
+	 * inside an OnPlanReady / OnJudgeVerdict handler always see the latest
+	 * total. Estimate only — Anthropic billing is authoritative.
+	 */
+	double GetTotalCostUsd() const { return TotalCostUsd; }
+
+	/**
 	 * Install the client that fulfills HITL approval requests. Must be set
 	 * before RunAsync is called. If left null, the session defaults to
 	 * FVesselAutoApprovalClient — safe for mock-driven automated tests, but

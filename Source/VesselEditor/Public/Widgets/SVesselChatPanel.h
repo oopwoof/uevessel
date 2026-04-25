@@ -85,6 +85,9 @@ private:
 		bool bWasError, const FString& ErrorMessage);
 	void HandleJudgeVerdict(const FVesselJudgeVerdict& Verdict);
 
+	/** Read TotalCostUsd from the live session and format it into the header label. */
+	void RefreshCostFromSession();
+
 	// Which view of the action bar is showing.
 	enum class EBarView : uint8
 	{

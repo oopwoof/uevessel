@@ -106,7 +106,7 @@ void SVesselChatPanel::Construct(const FArguments& /*InArgs*/)
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
 					SAssignNew(CostLabelWidget, STextBlock)
-					.Text(LOCTEXT("VesselCostPlaceholder", "$0.00"))
+					.Text(LOCTEXT("VesselCostPlaceholder", "$0.0000 (est)"))
 				]
 			]
 
@@ -282,6 +282,7 @@ void SVesselChatPanel::AppendAssistantMessage(const FString& Text) { AppendMessa
 void SVesselChatPanel::HandlePlanReady(const FVesselPlan& Plan)
 {
 	AppendChatWidget(SNew(SVesselPlanCard).Plan(&Plan));
+	RefreshCostFromSession();
 }
 
 void SVesselChatPanel::HandleStepExecuted(
@@ -300,6 +301,17 @@ void SVesselChatPanel::HandleStepExecuted(
 void SVesselChatPanel::HandleJudgeVerdict(const FVesselJudgeVerdict& Verdict)
 {
 	AppendChatWidget(SNew(SVesselVerdictCard).Verdict(&Verdict));
+	RefreshCostFromSession();
+}
+
+void SVesselChatPanel::RefreshCostFromSession()
+{
+	if (!CurrentSession.IsValid()) { return; }
+	const double Cost = CurrentSession->GetTotalCostUsd();
+	// Estimates from a snapshot pricing table — always show 4 fractional digits
+	// so micro-cost runs ($0.0042 typical for one Sonnet+Haiku step) don't
+	// round to $0.00. Append "(est)" so it never reads like a billed total.
+	SetCostLabel(FString::Printf(TEXT("$%.4f (est)"), Cost));
 }
 
 void SVesselChatPanel::SetAgentStatus(const FString& S)  { if (AgentStatus.IsValid())     AgentStatus->SetText(FText::FromString(S)); }
@@ -340,6 +352,7 @@ void SVesselChatPanel::BeginSession(const FString& UserInput)
 
 	SetAgentStatus(TEXT("Agent: planning..."));
 	SetDiffPreview(TEXT("(Agent is thinking — diff will appear when a tool wants to run.)"));
+	SetCostLabel(TEXT("$0.0000 (est)")); // reset previous session's running total
 
 	FVesselSessionConfig Config = MakeDefaultSessionConfig(FString());
 	// Override the minimal fallback template with the shipping Designer Assistant.
@@ -445,7 +458,7 @@ void SVesselChatPanel::OnSessionComplete(const FVesselSessionOutcome& Outcome)
 		default: break;
 	}
 
-	SetCostLabel(FString::Printf(TEXT("$%.2f"), Outcome.TotalCostUsd));
+	SetCostLabel(FString::Printf(TEXT("$%.4f (est)"), Outcome.TotalCostUsd));
 	SetApprovalButtonsEnabled(false);
 	SetBarView(EBarView::Normal);
 	SetDiffPreview(TEXT("(No pending change.)"));

@@ -3,6 +3,7 @@
 #include "Llm/AnthropicProvider.h"
 
 #include "VesselLog.h"
+#include "Llm/VesselLlmPricing.h"
 #include "Settings/VesselAuth.h"
 #include "Settings/VesselProjectSettings.h"
 #include "Settings/VesselUserSettings.h"
@@ -130,14 +131,26 @@ FLlmResponse FAnthropicProvider::ParseResponse(int32 HttpCode, const FString& Bo
 		Out.Content = Joined;
 	}
 
+	// Anthropic returns the served model id at top level — use that for
+	// pricing rather than the request's preferred id (the two can differ
+	// briefly during a model rotation).
+	FString ServedModel;
+	Root->TryGetStringField(TEXT("model"), ServedModel);
+
 	const TSharedPtr<FJsonObject>* UsageObj = nullptr;
 	if (Root->TryGetObjectField(TEXT("usage"), UsageObj) && UsageObj && UsageObj->IsValid())
 	{
-		int32 In = 0, OutTok = 0;
-		(*UsageObj)->TryGetNumberField(TEXT("input_tokens"), In);
-		(*UsageObj)->TryGetNumberField(TEXT("output_tokens"), OutTok);
-		Out.Usage.InputTokens = In;
-		Out.Usage.OutputTokens = OutTok;
+		int32 In = 0, OutTok = 0, CacheRead = 0, CacheCreate = 0;
+		(*UsageObj)->TryGetNumberField(TEXT("input_tokens"),                In);
+		(*UsageObj)->TryGetNumberField(TEXT("output_tokens"),               OutTok);
+		(*UsageObj)->TryGetNumberField(TEXT("cache_read_input_tokens"),     CacheRead);
+		(*UsageObj)->TryGetNumberField(TEXT("cache_creation_input_tokens"), CacheCreate);
+		Out.Usage.InputTokens         = In;
+		Out.Usage.OutputTokens        = OutTok;
+		Out.Usage.CacheReadTokens     = CacheRead;
+		Out.Usage.CacheCreationTokens = CacheCreate;
+		Out.Usage.EstimatedCostUsd    = FVesselLlmPricing::EstimateCostUsd(
+			ServedModel, In, OutTok, CacheRead, CacheCreate);
 	}
 
 	Out.bOk = true;
