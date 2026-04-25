@@ -2,11 +2,13 @@
 
 #include "VesselEditor.h"
 #include "VesselLog.h"
+#include "Registry/VesselToolRegistry.h"
 #include "Widgets/SVesselChatPanel.h"
 #include "Widgets/VesselTabIds.h"
 
 #include "Framework/Docking/TabManager.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "ToolMenus.h"
 #include "UObject/UObjectGlobals.h"
@@ -70,6 +72,19 @@ void FVesselEditorModule::StartupModule()
 	UToolMenus::RegisterStartupCallback(
 		FSimpleMulticastDelegate::FDelegate::CreateStatic(
 			&VesselEditorModuleDetail::RegisterWindowMenuEntry));
+
+	// Populate the agent tool registry once all UClasses are loaded.
+	// PostEngineInit fires after every plugin is initialised, which is when
+	// reflection-driven scanning sees every UFUNCTION marked AgentTool. Without
+	// this, the registry stays empty in production and any LLM session fails
+	// with "unknown tool" — caught during v0.2 L5 (2026-04-24).
+	FCoreDelegates::OnPostEngineInit.AddLambda([]()
+	{
+		FVesselToolRegistry::Get().ScanAll();
+		UE_LOG(LogVessel, Log,
+			TEXT("Vessel tool registry: %d tool(s) registered."),
+			FVesselToolRegistry::Get().Num());
+	});
 }
 
 void FVesselEditorModule::ShutdownModule()
