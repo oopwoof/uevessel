@@ -63,11 +63,15 @@ jobs:
     # Advisory during v0.1 alpha: maintainer does not yet have clang-format
     # locally, so we report drift but do not block main. v0.2 will (a) install
     # clang-format on the author's box, (b) sweep the existing drift, then
-    # (c) drop `continue-on-error` from this job to make format blocking.
+    # (c) drop `continue-on-error` from the step to make format blocking.
     # See CODING_STYLE.md §8 for the ultimate rule (CI enforces format).
+    #
+    # Note: continue-on-error sits on the *step*, not the job. Job-level
+    # continue-on-error still leaves the job marked as `failure` in the
+    # GitHub UI; step-level lets the job conclusion stay `success` while
+    # surfacing drift in logs.
     name: C++ format check (advisory)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Check if any C++ sources exist
@@ -78,8 +82,9 @@ jobs:
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Run clang-format
+      - name: Run clang-format (advisory)
         if: steps.has_cpp.outputs.present == 'true'
+        continue-on-error: true
         uses: jidicula/clang-format-action@v4.11.0
         with:
           clang-format-version: '17'
