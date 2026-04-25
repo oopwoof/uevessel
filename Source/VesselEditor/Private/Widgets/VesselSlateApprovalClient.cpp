@@ -41,10 +41,10 @@ TFuture<FVesselApprovalDecision> FVesselSlateApprovalClient::RequestDecisionAsyn
 		MakeShared<TPromise<FVesselApprovalDecision>>();
 	TFuture<FVesselApprovalDecision> WrappedFuture = WrappedPromise->GetFuture();
 
-	TWeakPtr<FVesselSlateApprovalClient> WeakThis = AsShared();
-	WrappedFuture.Next([WeakThis, Promise](FVesselApprovalDecision Decision)
+	TWeakPtr<FVesselSlateApprovalClient> WeakSelf = AsShared();
+	WrappedFuture.Next([WeakSelf, Promise](FVesselApprovalDecision Decision)
 	{
-		if (TSharedPtr<FVesselSlateApprovalClient> Pinned = WeakThis.Pin())
+		if (TSharedPtr<FVesselSlateApprovalClient> Pinned = WeakSelf.Pin())
 		{
 			Pinned->bPending.store(false, std::memory_order_release);
 		}
@@ -53,9 +53,9 @@ TFuture<FVesselApprovalDecision> FVesselSlateApprovalClient::RequestDecisionAsyn
 
 	// Slate is not thread-safe. If we're already on the game thread, fire the
 	// delegate synchronously (keeps unit tests deterministic). Otherwise hop.
-	auto ExecuteOnUI = [WeakThis, Request, WrappedPromise]()
+	auto ExecuteOnUI = [WeakSelf, Request, WrappedPromise]()
 	{
-		if (TSharedPtr<FVesselSlateApprovalClient> Pinned = WeakThis.Pin())
+		if (TSharedPtr<FVesselSlateApprovalClient> Pinned = WeakSelf.Pin())
 		{
 			if (Pinned->OnApprovalRequested.IsBound())
 			{

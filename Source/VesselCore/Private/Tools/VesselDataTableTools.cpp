@@ -19,7 +19,7 @@
 namespace VesselDataTableDetail
 {
 	/** Serialize a single row struct instance to a JsonObject. Best-effort — unknown types render as null. */
-	static TSharedRef<FJsonObject> RowToJsonObject(UScriptStruct* RowStruct, const void* RowData)
+	static TSharedRef<FJsonObject> RowToJsonObject(const UScriptStruct* RowStruct, const void* RowData)
 	{
 		TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
 		if (!RowStruct || !RowData)
@@ -93,7 +93,7 @@ FString UVesselDataTableTools::ReadRowsJson(UDataTable* Table, const TArray<FNam
 		return VesselDataTableDetail::SerializeAsCondensedJson(Root);
 	}
 
-	UScriptStruct* RowStruct = Table->GetRowStruct();
+	const UScriptStruct* RowStruct = Table->GetRowStruct();
 	if (!RowStruct)
 	{
 		return VesselDataTableDetail::SerializeAsCondensedJson(Root);
@@ -145,7 +145,7 @@ bool UVesselDataTableTools::WriteRowJson(UDataTable* Table, FName RowName, const
 		UE_LOG(LogVesselRegistry, Warning, TEXT("WriteRowJson: null table"));
 		return false;
 	}
-	UScriptStruct* RowStruct = Table->GetRowStruct();
+	const UScriptStruct* RowStruct = Table->GetRowStruct();
 	if (!RowStruct)
 	{
 		UE_LOG(LogVesselRegistry, Warning, TEXT("WriteRowJson: DataTable has no RowStruct"));
@@ -182,21 +182,11 @@ bool UVesselDataTableTools::WriteRowJson(UDataTable* Table, FName RowName, const
 
 	// FScopedTransaction records only objects that call Modify() before mutation.
 	// See TOOL_REGISTRY.md §4 "Tool author responsibility".
-	Table->Modify();
-
-	TMap<FName, uint8*>& RowMap = Table->GetNonConstRowMap();
-	if (uint8** Existing = RowMap.Find(RowName))
-	{
-		RowStruct->DestroyStruct(*Existing);
-		FMemory::Free(*Existing);
-		RowMap.Remove(RowName);
-	}
-	uint8* NewRow = static_cast<uint8*>(FMemory::Malloc(StructSize));
-	RowStruct->InitializeStruct(NewRow);
-	RowStruct->CopyScriptStruct(NewRow, TempBuffer.GetData());
-	RowMap.Add(RowName, NewRow);
-
-	Table->HandleDataTableChanged(RowName);
+	// UDataTable::AddRow internally Modify()s, removes any existing row with the
+	// same key, allocates + copies a fresh row, and fires HandleDataTableChanged.
+	const FTableRowBase* TempAsRow =
+		reinterpret_cast<const FTableRowBase*>(TempBuffer.GetData());
+	Table->AddRow(RowName, *TempAsRow);
 
 	RowStruct->DestroyStruct(TempBuffer.GetData());
 	return true;

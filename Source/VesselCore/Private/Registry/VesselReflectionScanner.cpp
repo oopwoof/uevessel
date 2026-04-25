@@ -64,7 +64,7 @@ namespace
 #endif
 	}
 
-	FString EscapeJsonString(const FString& In)
+	FString JsonEscape(const FString& In)
 	{
 		FString Out;
 		Out.Reserve(In.Len() + 4);
@@ -138,7 +138,7 @@ FString FVesselReflectionScanner::PropertyToJsonSchema(FProperty* Prop)
 			for (int32 i = 0; i < Num - 1; ++i) // last is the "MAX" synthetic
 			{
 				if (i > 0) EnumList += TEXT(",");
-				EnumList += FString::Printf(TEXT("\"%s\""), *EscapeJsonString(Enum->GetNameStringByIndex(i)));
+				EnumList += FString::Printf(TEXT("\"%s\""), *JsonEscape(Enum->GetNameStringByIndex(i)));
 			}
 			return FString::Printf(TEXT("{\"type\":\"string\",\"enum\":[%s]}"), *EnumList);
 		}
@@ -170,7 +170,7 @@ FString FVesselReflectionScanner::PropertyToJsonSchema(FProperty* Prop)
 				bFirst = false;
 				const FString ChildSchema = PropertyToJsonSchema(*It);
 				Fields += FString::Printf(TEXT("\"%s\":%s"),
-					*EscapeJsonString(It->GetName()), *ChildSchema);
+					*JsonEscape(It->GetName()), *ChildSchema);
 			}
 			return FString::Printf(TEXT("{\"type\":\"object\",\"properties\":{%s}}"), *Fields);
 		}
@@ -178,7 +178,7 @@ FString FVesselReflectionScanner::PropertyToJsonSchema(FProperty* Prop)
 
 	// Fallback — unknown types surface clearly so scanner output can be audited.
 	return FString::Printf(TEXT("{\"type\":\"unknown\",\"cppType\":\"%s\"}"),
-		*EscapeJsonString(Prop->GetCPPType()));
+		*JsonEscape(Prop->GetCPPType()));
 }
 
 FVesselToolSchema FVesselReflectionScanner::BuildSchemaForFunction(UClass* OwningClass, UFunction* Function)

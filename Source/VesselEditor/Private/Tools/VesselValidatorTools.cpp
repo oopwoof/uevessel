@@ -73,10 +73,11 @@ FString UVesselValidatorTools::RunAssetValidator(const FString& AssetPath)
 		return VesselValidatorDetail::SerializeObject(Root);
 	}
 
-	FDataValidationContext Context(
-		/*bSkipExcludedDirectories=*/ false,
-		EDataValidationUsecase::Manual,
-		TConstArrayView<FText>());
+	// FDataValidationContext's 3-arg ctor signature shifted in UE 5.7. The
+	// default ctor is stable across versions; usecase defaults to None, which
+	// means validators that gate on Manual won't see this run as user-initiated.
+	// Acceptable for v0.1 — callers (agents) classify their own intent.
+	FDataValidationContext Context;
 
 	const EDataValidationResult Result = Subsys->IsObjectValidWithContext(Asset, Context);
 

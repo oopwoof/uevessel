@@ -73,6 +73,16 @@ public:
 	 */
 	void SetApprovalClient(TSharedRef<IVesselApprovalClient> InClient);
 
+	/**
+	 * Pure predicate: does a step that resolves to this tool schema require
+	 * a HITL approval round-trip? Triggers per HITL_PROTOCOL.md §1.1:
+	 * RequiresApproval, IrreversibleHint, or Category contains "Write".
+	 *
+	 * Public so callers (UI previews, tests) can ask without touching a live
+	 * machine. Pure schema-level — no FSM state read or written.
+	 */
+	static bool StepNeedsApproval(const struct FVesselToolSchema& Schema);
+
 	// Non-copyable, non-movable — holds file handles + delegate registrations.
 	FVesselSessionMachine(const FVesselSessionMachine&) = delete;
 	FVesselSessionMachine& operator=(const FVesselSessionMachine&) = delete;
@@ -86,8 +96,7 @@ private:
 	void EnterToolSelection();
 	void EnterExecuting();
 
-	/** HITL gate helpers (see HITL_PROTOCOL.md §1). */
-	static bool StepNeedsApproval(const struct FVesselToolSchema& Schema);
+	/** HITL gate helpers (see HITL_PROTOCOL.md §1). Predicate is public above. */
 	void RequestApprovalForStep(const FVesselPlanStep& Step, const FVesselToolSchema& Schema);
 	void HandleApprovalDecision(FVesselPlanStep Step, FVesselApprovalDecision Decision);
 	void InvokeStep(const FVesselPlanStep& Step);

@@ -88,7 +88,7 @@ bool FVesselSessionE2ESingleStepApprove::RunTest(const FString& /*Parameters*/)
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	TestTrue(TEXT("Machine inits"), Machine->Init(Cfg));
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	TFuture<FVesselSessionOutcome> Fut = Machine->RunAsync(TEXT("e2e-singlestep"));
 	// Mock is synchronous; .Get() returns immediately without blocking the game thread.
@@ -104,7 +104,7 @@ bool FVesselSessionE2ESingleStepApprove::RunTest(const FString& /*Parameters*/)
 
 	// Verify structured log contents.
 	TArray<FString> Lines;
-	if (FFileHelper::LoadFileToStringArray(Lines, *LogPath))
+	if (FFileHelper::LoadFileToStringArray(Lines, *SessionLogPath))
 	{
 		bool bSawOpen     = false;
 		bool bSawPlanning = false;
@@ -127,10 +127,10 @@ bool FVesselSessionE2ESingleStepApprove::RunTest(const FString& /*Parameters*/)
 	}
 	else
 	{
-		AddError(FString::Printf(TEXT("Could not read session log: %s"), *LogPath));
+		AddError(FString::Printf(TEXT("Could not read session log: %s"), *SessionLogPath));
 	}
 
-	VesselSessionE2ETestDetail::DeleteLog(LogPath);
+	VesselSessionE2ETestDetail::DeleteLog(SessionLogPath);
 	VesselSessionE2ETestDetail::RestoreDefaultMockProvider();
 	return true;
 }
@@ -157,7 +157,7 @@ bool FVesselSessionE2EPlannerMalformed::RunTest(const FString& /*Parameters*/)
 
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("e2e-planner-bad")).Get();
 
@@ -167,7 +167,7 @@ bool FVesselSessionE2EPlannerMalformed::RunTest(const FString& /*Parameters*/)
 	TestTrue(TEXT("Failure reason mentions planner"),
 		Outcome.Reason.Contains(TEXT("Planner")) || Outcome.Reason.Contains(TEXT("plan")));
 
-	VesselSessionE2ETestDetail::DeleteLog(LogPath);
+	VesselSessionE2ETestDetail::DeleteLog(SessionLogPath);
 	VesselSessionE2ETestDetail::RestoreDefaultMockProvider();
 	return true;
 }
@@ -196,7 +196,7 @@ bool FVesselSessionE2EUnknownTool::RunTest(const FString& /*Parameters*/)
 
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("e2e-unknown")).Get();
 
@@ -206,7 +206,7 @@ bool FVesselSessionE2EUnknownTool::RunTest(const FString& /*Parameters*/)
 	TestTrue(TEXT("Failure names the unknown tool"),
 		Outcome.Reason.Contains(TEXT("NotInRegistry_XYZ")));
 
-	VesselSessionE2ETestDetail::DeleteLog(LogPath);
+	VesselSessionE2ETestDetail::DeleteLog(SessionLogPath);
 	VesselSessionE2ETestDetail::RestoreDefaultMockProvider();
 	return true;
 }
@@ -240,7 +240,7 @@ bool FVesselSessionE2EJudgeReject::RunTest(const FString& /*Parameters*/)
 
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("e2e-reject")).Get();
 
@@ -252,7 +252,7 @@ bool FVesselSessionE2EJudgeReject::RunTest(const FString& /*Parameters*/)
 	TestEqual(TEXT("StepsExecuted still counts the executed-then-rejected step"),
 		Outcome.StepsExecuted, 1);
 
-	VesselSessionE2ETestDetail::DeleteLog(LogPath);
+	VesselSessionE2ETestDetail::DeleteLog(SessionLogPath);
 	VesselSessionE2ETestDetail::RestoreDefaultMockProvider();
 	return true;
 }
@@ -291,7 +291,7 @@ bool FVesselSessionE2EConsecutiveReviseBudget::RunTest(const FString& /*Paramete
 
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("e2e-revise-loop")).Get();
 
@@ -301,7 +301,7 @@ bool FVesselSessionE2EConsecutiveReviseBudget::RunTest(const FString& /*Paramete
 	TestTrue(TEXT("Failure reason mentions revise"),
 		Outcome.Reason.Contains(TEXT("revise")) || Outcome.Reason.Contains(TEXT("Consecutive")));
 
-	VesselSessionE2ETestDetail::DeleteLog(LogPath);
+	VesselSessionE2ETestDetail::DeleteLog(SessionLogPath);
 	VesselSessionE2ETestDetail::RestoreDefaultMockProvider();
 	return true;
 }
@@ -328,7 +328,7 @@ bool FVesselSessionE2EEmptyPlan::RunTest(const FString& /*Parameters*/)
 
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("e2e-empty")).Get();
 
@@ -337,7 +337,7 @@ bool FVesselSessionE2EEmptyPlan::RunTest(const FString& /*Parameters*/)
 		static_cast<uint8>(EVesselSessionOutcomeKind::Done));
 	TestEqual(TEXT("No steps executed"), Outcome.StepsExecuted, 0);
 
-	VesselSessionE2ETestDetail::DeleteLog(LogPath);
+	VesselSessionE2ETestDetail::DeleteLog(SessionLogPath);
 	VesselSessionE2ETestDetail::RestoreDefaultMockProvider();
 	return true;
 }

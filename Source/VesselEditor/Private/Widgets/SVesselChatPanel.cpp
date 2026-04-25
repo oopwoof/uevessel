@@ -323,12 +323,12 @@ void SVesselChatPanel::BeginSession(const FString& UserInput)
 	CurrentSession = MakeShared<FVesselSessionMachine>();
 
 	ApprovalClient = MakeShared<FVesselSlateApprovalClient>();
-	TWeakPtr<SVesselChatPanel> WeakThis = SharedThis(this);
+	TWeakPtr<SVesselChatPanel> WeakSelf = SharedThis(this);
 	ApprovalClient->OnApprovalRequested.BindLambda(
-		[WeakThis](const FVesselApprovalRequest& Request,
+		[WeakSelf](const FVesselApprovalRequest& Request,
 		           TSharedRef<TPromise<FVesselApprovalDecision>> Promise)
 		{
-			if (TSharedPtr<SVesselChatPanel> Pinned = WeakThis.Pin())
+			if (TSharedPtr<SVesselChatPanel> Pinned = WeakSelf.Pin())
 			{
 				Pinned->HandleApprovalRequested(Request, Promise);
 			}
@@ -353,12 +353,12 @@ void SVesselChatPanel::BeginSession(const FString& UserInput)
 	}
 
 	CurrentSession->RunAsync(UserInput).Next(
-		[WeakThis](FVesselSessionOutcome Outcome)
+		[WeakSelf](FVesselSessionOutcome Outcome)
 		{
 			AsyncTask(ENamedThreads::GameThread,
-				[WeakThis, Out = MoveTemp(Outcome)]() mutable
+				[WeakSelf, Out = MoveTemp(Outcome)]() mutable
 				{
-					if (TSharedPtr<SVesselChatPanel> Pinned = WeakThis.Pin())
+					if (TSharedPtr<SVesselChatPanel> Pinned = WeakSelf.Pin())
 					{
 						Pinned->OnSessionComplete(Out);
 					}

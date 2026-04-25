@@ -20,9 +20,9 @@ class IFileHandle;
  *   }
  *
  * Durability model:
- *   - Writes go through `IPlatformFile::OpenWrite(Path, /*append=*/true, /*allowRead=*/true)`
- *     so Windows shares the handle; other processes (VSCode tail, antivirus)
- *     do not block our appends.
+ *   - Writes go through IPlatformFile::OpenWrite with bAppend=true and
+ *     bAllowRead=true so Windows shares the handle; other processes
+ *     (VSCode tail, antivirus) do not block our appends.
  *   - Each AppendRecord flushes to disk before returning. A crash therefore
  *     may drop the last in-flight record but NEVER leaves a partial JSON
  *     line — the replay path relies on that invariant.

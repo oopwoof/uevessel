@@ -77,10 +77,9 @@ void FVesselEditorModule::ShutdownModule()
 	UE_LOG(LogVessel, Log, TEXT("VesselEditor module shutting down."));
 
 	// Unregister the dock tab spawner so the Workspace → Tools entry goes away.
-	if (FGlobalTabmanager::Get().IsValid())
-	{
-		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(VesselTabIds::ChatPanel);
-	}
+	// FGlobalTabmanager::Get() returns a TSharedRef which is always valid by
+	// definition; calling IsValid on a TSharedRef is rejected in UE 5.7 onward.
+	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(VesselTabIds::ChatPanel);
 
 	// Remove any menu extensions we added. Guarded because ShutdownModule can
 	// run after UObject shutdown during editor quit, where UToolMenus::Get()

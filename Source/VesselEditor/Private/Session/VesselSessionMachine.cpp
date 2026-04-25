@@ -19,11 +19,8 @@
 
 #include "Async/Async.h"
 #include "Dom/JsonObject.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/DateTime.h"
-
-#if WITH_EDITOR
-#include "Editor.h"
-#endif
 
 namespace VesselSessionDetail
 {
@@ -40,7 +37,11 @@ FVesselSessionMachine::~FVesselSessionMachine()
 #if WITH_EDITOR
 	if (EditorCloseHandle.IsValid())
 	{
-		FEditorDelegates::OnEditorClose.Remove(EditorCloseHandle);
+		// FCoreDelegates::OnPreExit covers both editor close and any process-
+		// shutdown path, and is stable across UE 5.5/5.6/5.7. We previously
+		// hooked FEditorDelegates::OnEditorClose, but that symbol was removed
+		// in UE 5.7's UnrealEd public surface.
+		FCoreDelegates::OnPreExit.Remove(EditorCloseHandle);
 		EditorCloseHandle.Reset();
 	}
 #endif
@@ -97,9 +98,10 @@ bool FVesselSessionMachine::Init(const FVesselSessionConfig& InConfig)
 	Log->AppendRecord(TEXT("SessionOpen"), Hdr);
 
 #if WITH_EDITOR
-	EditorCloseHandle = FEditorDelegates::OnEditorClose.AddLambda([WeakThis = AsWeak()]()
+	// See destructor comment on the choice of FCoreDelegates::OnPreExit.
+	EditorCloseHandle = FCoreDelegates::OnPreExit.AddLambda([WeakSelf = AsWeak()]()
 	{
-		if (TSharedPtr<FVesselSessionMachine> Pinned = WeakThis.Pin())
+		if (TSharedPtr<FVesselSessionMachine> Pinned = WeakSelf.Pin())
 		{
 			Pinned->OnEditorClosingHook();
 		}

@@ -127,7 +127,7 @@ bool FVesselHITLApprovePath::RunTest(const FString& /*Parameters*/)
 	Machine->SetApprovalClient(Scripted);
 	TestTrue(TEXT("Init succeeds"), Machine->Init(Cfg));
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("hitl-approve")).Get();
 
 	TestEqual(TEXT("Session completes as Done"),
@@ -138,7 +138,7 @@ bool FVesselHITLApprovePath::RunTest(const FString& /*Parameters*/)
 
 	// Log contains ApprovalRequested + ApprovalDecision markers.
 	TArray<FString> Lines;
-	if (FFileHelper::LoadFileToStringArray(Lines, *LogPath))
+	if (FFileHelper::LoadFileToStringArray(Lines, *SessionLogPath))
 	{
 		bool bReq = false, bDec = false;
 		for (const FString& L : Lines)
@@ -150,7 +150,7 @@ bool FVesselHITLApprovePath::RunTest(const FString& /*Parameters*/)
 		TestTrue(TEXT("ApprovalDecision logged"),  bDec);
 	}
 
-	VesselHITLTestDetail::DeletePath(LogPath);
+	VesselHITLTestDetail::DeletePath(SessionLogPath);
 	VesselHITLTestDetail::RestoreDefaultMockProvider();
 	return true;
 }
@@ -189,7 +189,7 @@ bool FVesselHITLRejectSinksToAgentsMd::RunTest(const FString& /*Parameters*/)
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->SetApprovalClient(Scripted);
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("hitl-reject")).Get();
 
@@ -235,7 +235,7 @@ bool FVesselHITLRejectSinksToAgentsMd::RunTest(const FString& /*Parameters*/)
 	{
 		VesselHITLTestDetail::DeletePath(AgentsPath);
 	}
-	VesselHITLTestDetail::DeletePath(LogPath);
+	VesselHITLTestDetail::DeletePath(SessionLogPath);
 	// Archive retained across tests — it's a monthly append log, other tests
 	// may still want it. Safe to leave.
 	VesselHITLTestDetail::RestoreDefaultMockProvider();
@@ -275,7 +275,7 @@ bool FVesselHITLEditAndApprove::RunTest(const FString& /*Parameters*/)
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->SetApprovalClient(Scripted);
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("hitl-edit")).Get();
 
@@ -293,7 +293,7 @@ bool FVesselHITLEditAndApprove::RunTest(const FString& /*Parameters*/)
 
 	// Log contains the revised args
 	FString Contents;
-	if (FFileHelper::LoadFileToString(Contents, *LogPath))
+	if (FFileHelper::LoadFileToString(Contents, *SessionLogPath))
 	{
 		TestTrue(TEXT("Log notes EditAndApprove decision"),
 			Contents.Contains(TEXT("EditAndApprove")));
@@ -301,7 +301,7 @@ bool FVesselHITLEditAndApprove::RunTest(const FString& /*Parameters*/)
 			Contents.Contains(TEXT("/revised/path")));
 	}
 
-	VesselHITLTestDetail::DeletePath(LogPath);
+	VesselHITLTestDetail::DeletePath(SessionLogPath);
 	VesselHITLTestDetail::RestoreDefaultMockProvider();
 	return true;
 }
@@ -339,7 +339,7 @@ bool FVesselHITLReadOnlyBypass::RunTest(const FString& /*Parameters*/)
 	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
 	Machine->SetApprovalClient(Scripted);
 	Machine->Init(Cfg);
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("hitl-bypass")).Get();
 
@@ -349,7 +349,7 @@ bool FVesselHITLReadOnlyBypass::RunTest(const FString& /*Parameters*/)
 	TestEqual(TEXT("ApprovalClient was NOT queried for the read-only step"),
 		Scripted->GetRequestCount(), 0);
 
-	VesselHITLTestDetail::DeletePath(LogPath);
+	VesselHITLTestDetail::DeletePath(SessionLogPath);
 	VesselHITLTestDetail::RestoreDefaultMockProvider();
 	return true;
 }
