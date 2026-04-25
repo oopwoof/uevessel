@@ -107,7 +107,7 @@ bool FVesselSessionObserversPlanReadyOnValid::RunTest(const FString& /*Parameter
 			if (Plan.Steps.Num() > 0) ObservedFirstTool = Plan.Steps[0].ToolName;
 		});
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("obs-valid")).Get();
 
 	TestEqual(TEXT("OnPlanReady fired exactly once"), PlanReadyCount, 1);
@@ -118,7 +118,7 @@ bool FVesselSessionObserversPlanReadyOnValid::RunTest(const FString& /*Parameter
 		static_cast<uint8>(Outcome.Kind),
 		static_cast<uint8>(EVesselSessionOutcomeKind::Done));
 
-	DeleteLog(LogPath);
+	DeleteLog(SessionLogPath);
 	RestoreDefaultMockProvider();
 	return true;
 }
@@ -150,7 +150,7 @@ bool FVesselSessionObserversPlanReadyNotOnInvalid::RunTest(const FString& /*Para
 	Machine->OnPlanReady.AddLambda(
 		[&PlanReadyCount](const FVesselPlan&) { ++PlanReadyCount; });
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("obs-invalid")).Get();
 
 	TestEqual(TEXT("OnPlanReady never fired on invalid plan"), PlanReadyCount, 0);
@@ -158,7 +158,7 @@ bool FVesselSessionObserversPlanReadyNotOnInvalid::RunTest(const FString& /*Para
 		static_cast<uint8>(Outcome.Kind),
 		static_cast<uint8>(EVesselSessionOutcomeKind::Failed));
 
-	DeleteLog(LogPath);
+	DeleteLog(SessionLogPath);
 	RestoreDefaultMockProvider();
 	return true;
 }
@@ -190,7 +190,7 @@ bool FVesselSessionObserversPlanReadyNotOnEmpty::RunTest(const FString& /*Parame
 	Machine->OnPlanReady.AddLambda(
 		[&PlanReadyCount](const FVesselPlan&) { ++PlanReadyCount; });
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("obs-empty")).Get();
 
 	TestEqual(TEXT("OnPlanReady not fired on empty plan"), PlanReadyCount, 0);
@@ -199,7 +199,7 @@ bool FVesselSessionObserversPlanReadyNotOnEmpty::RunTest(const FString& /*Parame
 		static_cast<uint8>(EVesselSessionOutcomeKind::Done));
 	TestEqual(TEXT("StepsExecuted == 0"), Outcome.StepsExecuted, 0);
 
-	DeleteLog(LogPath);
+	DeleteLog(SessionLogPath);
 	RestoreDefaultMockProvider();
 	return true;
 }
@@ -241,7 +241,7 @@ bool FVesselSessionObserversStepExecutedSuccess::RunTest(const FString& /*Parame
 			ObservedResult = ResultJson;
 		});
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("obs-step")).Get();
 
 	TestEqual(TEXT("OnStepExecuted fired exactly once"), StepCount, 1);
@@ -253,7 +253,7 @@ bool FVesselSessionObserversStepExecutedSuccess::RunTest(const FString& /*Parame
 		static_cast<uint8>(Outcome.Kind),
 		static_cast<uint8>(EVesselSessionOutcomeKind::Done));
 
-	DeleteLog(LogPath);
+	DeleteLog(SessionLogPath);
 	RestoreDefaultMockProvider();
 	return true;
 }
@@ -292,7 +292,7 @@ bool FVesselSessionObserversJudgeApprove::RunTest(const FString& /*Parameters*/)
 			LastReasoning = V.Reasoning;
 		});
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("obs-judge")).Get();
 
 	TestEqual(TEXT("OnJudgeVerdict fired exactly once"), VerdictCount, 1);
@@ -305,7 +305,7 @@ bool FVesselSessionObserversJudgeApprove::RunTest(const FString& /*Parameters*/)
 		static_cast<uint8>(Outcome.Kind),
 		static_cast<uint8>(EVesselSessionOutcomeKind::Done));
 
-	DeleteLog(LogPath);
+	DeleteLog(SessionLogPath);
 	RestoreDefaultMockProvider();
 	return true;
 }
@@ -341,7 +341,7 @@ bool FVesselSessionObserversJudgeRejectFires::RunTest(const FString& /*Parameter
 			LastDecision = V.Decision;
 		});
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("obs-rej")).Get();
 
 	TestEqual(TEXT("OnJudgeVerdict fired exactly once"), VerdictCount, 1);
@@ -352,7 +352,7 @@ bool FVesselSessionObserversJudgeRejectFires::RunTest(const FString& /*Parameter
 		static_cast<uint8>(Outcome.Kind),
 		static_cast<uint8>(EVesselSessionOutcomeKind::Failed));
 
-	DeleteLog(LogPath);
+	DeleteLog(SessionLogPath);
 	RestoreDefaultMockProvider();
 	return true;
 }
@@ -388,7 +388,7 @@ bool FVesselSessionObserversFireOrder::RunTest(const FString& /*Parameters*/)
 	Machine->OnJudgeVerdict.AddLambda(
 		[&FireSequence](const FVesselJudgeVerdict&) { FireSequence.Add(TEXT("verdict")); });
 
-	const FString LogPath = Machine->GetLogFilePath();
+	const FString SessionLogPath = Machine->GetLogFilePath();
 	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("obs-order")).Get();
 
 	TestEqual(TEXT("Outcome = Done"),
@@ -402,7 +402,7 @@ bool FVesselSessionObserversFireOrder::RunTest(const FString& /*Parameters*/)
 		TestEqual(TEXT("[2] = verdict"), FireSequence[2], FString(TEXT("verdict")));
 	}
 
-	DeleteLog(LogPath);
+	DeleteLog(SessionLogPath);
 	RestoreDefaultMockProvider();
 	return true;
 }
