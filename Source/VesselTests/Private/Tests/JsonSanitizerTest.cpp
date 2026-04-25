@@ -124,3 +124,95 @@ bool FVesselJsonSanitizerNoObject::RunTest(const FString& /*Parameters*/)
 		FVesselJsonSanitizer::ParseAsObject(TEXT("```json\n```"), Obj));
 	return true;
 }
+
+// =============================================================================
+// Layer-B repair: unescaped " inside string values
+// =============================================================================
+//
+// Regression: Sonnet emitted `{"reasoning":"用户要求添加一行"典型数据""}` —
+// inner ASCII " breaks JSON. Layer A is a prompt rule (use 「」/'/escape);
+// Layer B is the sanitizer attempting one repair pass when strict parse fails.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselJsonSanitizerRepairInnerQuotes,
+	"Vessel.Util.JsonSanitizer.RepairInnerUnescapedQuotes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselJsonSanitizerRepairInnerQuotes::RunTest(const FString& /*Parameters*/)
+{
+	// Real Sonnet output, copy-pasted from session vs-2026-04-24-0026.
+	const FString Raw =
+		TEXT("{\"plan\":[{\"tool\":\"ReadDataTable\",\"args\":")
+		TEXT("{\"AssetPath\":\"/Game/X\",\"RowNames\":[]},")
+		TEXT("\"reasoning\":\"用户要求添加一行\"典型数据\"，但未指定具体字段值。\"}]}");
+
+	TSharedPtr<FJsonObject> Obj;
+	TestTrue(TEXT("ParseAsObject succeeds via repair pass"),
+		FVesselJsonSanitizer::ParseAsObject(Raw, Obj));
+	if (!Obj.IsValid()) return false;
+
+	const TArray<TSharedPtr<FJsonValue>>* Plan = nullptr;
+	TestTrue(TEXT("Plan field present"),
+		Obj->TryGetArrayField(TEXT("plan"), Plan));
+	TestEqual(TEXT("One step parsed"), Plan ? Plan->Num() : -1, 1);
+	if (!Plan || Plan->Num() != 1) return false;
+
+	const TSharedPtr<FJsonObject>& Step = (*Plan)[0]->AsObject();
+	TestEqual(TEXT("Step tool name preserved"),
+		Step->GetStringField(TEXT("tool")),
+		FString(TEXT("ReadDataTable")));
+
+	// The reasoning content survives (with escaped inner quotes).
+	const FString Reasoning = Step->GetStringField(TEXT("reasoning"));
+	TestTrue(TEXT("Reasoning has user-text continuation"),
+		Reasoning.Contains(TEXT("典型数据")) &&
+		Reasoning.Contains(TEXT("但未指定")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselJsonSanitizerRepairLeavesValidUntouched,
+	"Vessel.Util.JsonSanitizer.RepairLeavesValidUntouched",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselJsonSanitizerRepairLeavesValidUntouched::RunTest(const FString& /*Parameters*/)
+{
+	// A perfectly valid JSON should pass strict parse and never need repair.
+	// We assert idempotence of the repair pass on a clean blob — guards
+	// against the heuristic accidentally mangling a string that contains
+	// quote-like Chinese punctuation or properly-escaped quotes.
+	const FString CleanRaw =
+		TEXT("{\"plan\":[{\"tool\":\"ReadDataTable\",\"reasoning\":")
+		TEXT("\"用户「典型数据」需要补字段\"}]}");
+
+	TSharedPtr<FJsonObject> Obj;
+	TestTrue(TEXT("Strict parse already succeeds"),
+		FVesselJsonSanitizer::ParseAsObject(CleanRaw, Obj));
+
+	const FString Repaired =
+		FVesselJsonSanitizer::RepairUnescapedInnerQuotes(CleanRaw);
+	TestEqual(TEXT("Repair pass leaves valid JSON byte-for-byte"),
+		Repaired, CleanRaw);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselJsonSanitizerRepairHandlesEscapedQuote,
+	"Vessel.Util.JsonSanitizer.RepairHandlesAlreadyEscaped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselJsonSanitizerRepairHandlesEscapedQuote::RunTest(const FString& /*Parameters*/)
+{
+	// JSON with a properly-escaped \" must NOT be double-escaped by the
+	// repair walker.
+	const FString Raw =
+		TEXT("{\"k\":\"He said \\\"hi\\\".\"}");
+	TSharedPtr<FJsonObject> Obj;
+	TestTrue(TEXT("Already-escaped quotes parse on first try"),
+		FVesselJsonSanitizer::ParseAsObject(Raw, Obj));
+	if (!Obj.IsValid()) return false;
+	TestEqual(TEXT("Value preserves the inner quote characters"),
+		Obj->GetStringField(TEXT("k")),
+		FString(TEXT("He said \"hi\".")));
+	return true;
+}

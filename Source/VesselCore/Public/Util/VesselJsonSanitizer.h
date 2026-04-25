@@ -13,9 +13,12 @@
  * runs before parsing anywhere Vessel ingests LLM output.
  *
  * Policy:
- *   - Do NOT attempt to "fix" malformed JSON beyond fence stripping +
- *     first-balanced-{...} extraction. If both fail, return false with an
- *     actionable LLM-readable error message via the caller.
+ *   - Strip markdown fences and extract the first balanced {...} block.
+ *   - If a strict parse of the extracted block fails, attempt ONE narrow
+ *     repair pass: escape unescaped " inside string values where the LLM
+ *     forgot to (e.g. "reasoning":"用户要的是\"典型数据\"" emitted as
+ *     "reasoning":"用户要的是"典型数据""). Layer-A is a prompt rule asking
+ *     the LLM to use 「」/'' or escape; this is belt-and-suspenders.
  *   - Do NOT embed prompt-engineering suggestions here. That is Planner's job.
  *
  * See TOOL_REGISTRY.md §5.5 and ARCHITECTURE.md §2.4.
@@ -31,6 +34,18 @@ public:
 
 	/** Convenience: sanitize + parse into a TSharedPtr<FJsonObject>. */
 	static bool ParseAsObject(const FString& Raw, TSharedPtr<FJsonObject>& OutObject);
+
+	/**
+	 * Repair pass for unescaped inner quotes. Scans the input as a JSON
+	 * string, treats every `"` whose next non-whitespace char is NOT a
+	 * JSON structural delimiter (`:`, `,`, `}`, `]`, or EOF) as an inner
+	 * quote and escapes it with a leading backslash. Returns the repaired
+	 * string. If no change was made, the result equals the input.
+	 *
+	 * Public so tests can pin the heuristic directly without going through
+	 * Deserialize. Production callers should use ParseAsObject.
+	 */
+	static FString RepairUnescapedInnerQuotes(const FString& Text);
 
 private:
 	/** Remove leading ```json / ```\n and trailing ``` fences if present. */
