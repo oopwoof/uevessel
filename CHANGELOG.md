@@ -32,6 +32,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Edit-and-Approve UI 仍是 disabled 占位(留 v0.2)
 - Slate widget automation 测试需 render pump,仅做 module-level smoke(留 v0.2)
 - Anthropic provider tool_use 序列化骨架已就位,完整 multi-turn tool-use 链留 v0.2 打磨
+- **Chat 面板渲染最小化**:目前只显示用户输入 + FSM 终态字符串("Session complete" / "Failed: ...")。LLM 的 reasoning、Plan 详情、Tool 返回值、Judge 评语都已落入 `<Project>/Saved/AgentSessions/<SessionId>.jsonl`,但没渲染到面板。完整聊天 UI(plan 列表、tool result diff、judge 折叠卡片)留 v0.2
+- **Cost 追踪未实装**:面板顶部 Cost 始终显示 `$0.00`。`FAnthropicProvider` 还未把 response 的 token usage 转成 USD 估算(`FLlmResponse::UsageCostUsd` 字段已就位,只是 provider 没填)。这意味着 v0.1 的 `MaxCostUsd` budget 名义存在但实际不限制 —— 用户应自行通过 Anthropic 控制台监控用量。完整 cost / token / latency 仪表盘留 v0.2
 
 详细打包内容如下。
 
