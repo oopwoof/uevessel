@@ -22,15 +22,28 @@ bool FVesselAgentTemplatesDesignerShape::RunTest(const FString& /*Parameters*/)
 	TestFalse(TEXT("Write not granted by default"),
 		T.AllowedCategories.Contains(TEXT("DataTable/Write")));
 
-	// Prevent regression of the "single-shot planning" instruction. The harness
-	// does NOT loop back to Planning between approved steps — the LLM must be
-	// told to plan the complete sequence in one response, otherwise it tends
-	// to plan only a preparatory read and stop. Caught during v0.2 L5 testing.
-	TestTrue(TEXT("System prompt explicitly mandates single-response planning"),
-		T.SystemPrompt.Contains(TEXT("COMPLETE sequence in ONE response")));
-	TestTrue(TEXT("System prompt explicitly states no re-prompting"),
-		T.SystemPrompt.Contains(TEXT("does NOT re-prompt"))
-		|| T.SystemPrompt.Contains(TEXT("not re-prompt")));
+	// Prevent regression of three load-bearing prompt properties (each caught
+	// the hard way during v0.2 L5 testing — without all three, Sonnet either
+	// plans only a preparatory read OR returns an empty plan):
+	//
+	//   (a) No-second-turn: harness does not call Planner again after
+	//       approved steps; LLM must plan everything up-front.
+	//   (b) Read-then-write pattern is named explicitly so the LLM knows
+	//       to bundle both calls in one plan.
+	//   (c) Approval-panel-is-the-safety-net so the LLM doesn't preemptively
+	//       refuse a write out of "safety" — the user has the veto.
+	TestTrue(TEXT("System prompt names 'no second turn' / single-shot semantic"),
+		T.SystemPrompt.Contains(TEXT("no second turn"))
+		|| T.SystemPrompt.Contains(TEXT("not re-prompt"))
+		|| T.SystemPrompt.Contains(TEXT("does NOT re-prompt")));
+	TestTrue(TEXT("System prompt names the read-then-write two-step pattern"),
+		T.SystemPrompt.Contains(TEXT("ReadDataTable first"))
+		&& T.SystemPrompt.Contains(TEXT("WriteDataTableRow")));
+	TestTrue(TEXT("System prompt names approval panel as the safety mechanism"),
+		T.SystemPrompt.Contains(TEXT("approval panel"))
+		&& (T.SystemPrompt.Contains(TEXT("safety"))
+			|| T.SystemPrompt.Contains(TEXT("reviews"))
+			|| T.SystemPrompt.Contains(TEXT("approve or reject"))));
 	return true;
 }
 
