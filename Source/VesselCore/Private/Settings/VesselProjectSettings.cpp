@@ -6,6 +6,7 @@ UVesselProjectSettings::UVesselProjectSettings()
 	: Provider(TEXT("anthropic"))
 	, Model(TEXT("claude-sonnet-4-6"))
 	, bAllowHttp(false)
+	, DefaultAgentName(TEXT("designer-assistant"))
 {
 }
 

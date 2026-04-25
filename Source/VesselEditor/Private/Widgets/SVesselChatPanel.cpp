@@ -8,6 +8,7 @@
 #include "Session/VesselSessionConfig.h"
 #include "Session/VesselSessionMachine.h"
 #include "Session/VesselSessionTypes.h"
+#include "Settings/VesselProjectSettings.h"
 #include "Util/VesselJsonSanitizer.h"
 #include "Widgets/SVesselPlanCard.h"
 #include "Widgets/SVesselResultCard.h"
@@ -407,13 +408,18 @@ void SVesselChatPanel::BeginSession(const FString& UserInput)
 	if (SendButton.IsValid()) { SendButton->SetEnabled(false); }
 	if (InputBox.IsValid())   { InputBox->SetEnabled(false); }
 
-	SetAgentStatus(TEXT("Agent: planning..."));
 	SetDiffPreview(TEXT("(Agent is thinking — diff will appear when a tool wants to run.)"));
 	SetCostLabel(TEXT("$0.0000 (est)")); // reset previous session's running total
 
 	FVesselSessionConfig Config = MakeDefaultSessionConfig(FString());
-	// Override the minimal fallback template with the shipping Designer Assistant.
-	Config.AgentTemplate = FVesselAgentTemplates::MakeDesignerAssistant();
+	// Resolve the configured agent template by name. Empty / unknown name
+	// falls back to FVesselAgentTemplate::MakeMinimalFallback (handled
+	// inside FindByName); the panel surfaces the resolved agent name in
+	// the header status so the user can spot the wrong template fast.
+	const FString AgentName = UVesselProjectSettings::GetRef().DefaultAgentName;
+	Config.AgentTemplate = FVesselAgentTemplates::FindByName(AgentName);
+	SetAgentStatus(FString::Printf(TEXT("Agent (%s): planning..."),
+		*Config.AgentTemplate.Name));
 	if (Config.ProviderId.IsEmpty())
 	{
 		Config.ProviderId = TEXT("mock");

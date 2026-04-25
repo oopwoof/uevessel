@@ -69,6 +69,9 @@ bool FVesselAgentTemplatesLookup::RunTest(const FString& /*Parameters*/)
 	TestEqual(TEXT("Designer lookup by name"),
 		FVesselAgentTemplates::FindByName(TEXT("designer-assistant")).Name,
 		FString(TEXT("designer-assistant")));
+	TestEqual(TEXT("Asset-pipeline lookup by name"),
+		FVesselAgentTemplates::FindByName(TEXT("asset-pipeline")).Name,
+		FString(TEXT("asset-pipeline")));
 
 	// Unknown name falls back to the minimal built-in.
 	const FVesselAgentTemplate Unknown =
@@ -80,6 +83,50 @@ bool FVesselAgentTemplatesLookup::RunTest(const FString& /*Parameters*/)
 	const TArray<FString> All = FVesselAgentTemplates::ListNames();
 	TestTrue(TEXT("ListNames contains designer-assistant"),
 		All.Contains(TEXT("designer-assistant")));
+	TestTrue(TEXT("ListNames contains asset-pipeline"),
+		All.Contains(TEXT("asset-pipeline")));
+	return true;
+}
+
+/**
+ * Asset Pipeline persona contract:
+ *   - Allowed: Asset + Validator (NOT DataTable — that's Designer's scope).
+ *   - Judge rubric calls validator output ground truth.
+ *   - System prompt distinguishes pipeline scope from designer scope so
+ *     the LLM doesn't drift into row writes.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselAgentTemplatesAssetPipelineShape,
+	"Vessel.Session.AgentTemplates.AssetPipelineShape",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselAgentTemplatesAssetPipelineShape::RunTest(const FString& /*Parameters*/)
+{
+	const FVesselAgentTemplate T = FVesselAgentTemplates::MakeAssetPipelineAgent();
+
+	TestEqual(TEXT("Name is asset-pipeline"), T.Name, FString(TEXT("asset-pipeline")));
+	TestTrue(TEXT("System prompt non-empty"),  !T.SystemPrompt.IsEmpty());
+	TestTrue(TEXT("Judge rubric non-empty"),   !T.JudgeRubric.IsEmpty());
+
+	// Scope discrimination: Asset+Validator allowed, DataTable NOT allowed.
+	TestTrue(TEXT("Allowed includes Asset"),
+		T.AllowedCategories.Contains(TEXT("Asset")));
+	TestTrue(TEXT("Allowed includes Validator"),
+		T.AllowedCategories.Contains(TEXT("Validator")));
+	TestFalse(TEXT("Allowed does NOT include DataTable"),
+		T.AllowedCategories.Contains(TEXT("DataTable")));
+	TestFalse(TEXT("Allowed does NOT include DataTable/Write"),
+		T.AllowedCategories.Contains(TEXT("DataTable/Write")));
+
+	// Prompt explicitly tells LLM it has no DataTable tools to discourage drift.
+	TestTrue(TEXT("Prompt mentions DataTable scope is Designer's, not Pipeline's"),
+		T.SystemPrompt.Contains(TEXT("DataTable"))
+		&& (T.SystemPrompt.Contains(TEXT("Designer Assistant"))
+			|| T.SystemPrompt.Contains(TEXT("designer-assistant"))));
+
+	// Judge rubric pins validator-as-ground-truth philosophy.
+	TestTrue(TEXT("Judge rubric calls validator output ground truth"),
+		T.JudgeRubric.Contains(TEXT("validator")));
 	return true;
 }
 

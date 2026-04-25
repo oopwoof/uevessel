@@ -55,11 +55,59 @@ FVesselAgentTemplate FVesselAgentTemplates::MakeDesignerAssistant()
 	return T;
 }
 
+FVesselAgentTemplate FVesselAgentTemplates::MakeAssetPipelineAgent()
+{
+	FVesselAgentTemplate T;
+	T.Name = TEXT("asset-pipeline");
+
+	T.SystemPrompt =
+		TEXT("You are the Vessel Asset Pipeline Agent for Unreal Engine. The user is a ")
+		TEXT("Technical Artist auditing batch asset metadata, naming conventions, and ")
+		TEXT("validator results. You output a JSON plan; the Vessel harness executes ")
+		TEXT("every step in your plan top to bottom, once, then exits. There is no ")
+		TEXT("second turn.\n\n")
+		TEXT("Common request patterns and how to plan them:\n")
+		TEXT("  • \"validate <asset path>\" / \"are there errors on X\"\n")
+		TEXT("    → one step: RunAssetValidator on the asset.\n")
+		TEXT("  • \"list assets in /Game/<dir>\" / \"what's in this folder\"\n")
+		TEXT("    → one step: ListAssets with the path.\n")
+		TEXT("  • \"check naming on /Game/<dir>\" / \"audit metadata\"\n")
+		TEXT("    → two steps: ListAssets first (to enumerate paths), then per-asset ")
+		TEXT("ReadAssetMetadata or RunAssetValidator. Bundle every audit step in the ")
+		TEXT("same plan; the harness will not call you back to add more.\n\n")
+		TEXT("Rules:\n")
+		TEXT("  1. Validator output is ground truth. If RunAssetValidator returns errors, ")
+		TEXT("surface them in the step `reasoning`; do not suppress or reinterpret.\n")
+		TEXT("  2. You do NOT have DataTable / row-write tools. If the user asks you to ")
+		TEXT("modify table contents, return an empty plan and explain in `reasoning` ")
+		TEXT("that this is the Designer Assistant's scope, not the Pipeline Agent's.\n")
+		TEXT("  3. Asset names matter. When listing or auditing, surface the path in ")
+		TEXT("each step's `reasoning` so the user can scan the panel without expanding ")
+		TEXT("the result JSON.\n")
+		TEXT("  4. JSON formatting: same as designer — use 「」/'' or escape \\\" inside ")
+		TEXT("any string value, never raw \" double quotes.\n");
+
+	T.JudgeRubric =
+		TEXT("Approve when the tool returned the requested data and any validator surfaced ")
+		TEXT("its result cleanly. Revise when the listing was incomplete or the path was ")
+		TEXT("clearly mistyped. Reject when the agent ignored validator errors, suggested ")
+		TEXT("DataTable writes (out of scope), or attempted to invent paths.");
+
+	T.AllowedCategories = { TEXT("Asset"), TEXT("Validator") };
+	T.DeniedTools       = { };
+
+	return T;
+}
+
 FVesselAgentTemplate FVesselAgentTemplates::FindByName(const FString& Name)
 {
 	if (Name.Equals(TEXT("designer-assistant"), ESearchCase::IgnoreCase))
 	{
 		return MakeDesignerAssistant();
+	}
+	if (Name.Equals(TEXT("asset-pipeline"), ESearchCase::IgnoreCase))
+	{
+		return MakeAssetPipelineAgent();
 	}
 	if (Name.Equals(TEXT("vessel-default"), ESearchCase::IgnoreCase) || Name.IsEmpty())
 	{
@@ -70,5 +118,5 @@ FVesselAgentTemplate FVesselAgentTemplates::FindByName(const FString& Name)
 
 TArray<FString> FVesselAgentTemplates::ListNames()
 {
-	return { TEXT("designer-assistant"), TEXT("vessel-default") };
+	return { TEXT("designer-assistant"), TEXT("asset-pipeline"), TEXT("vessel-default") };
 }

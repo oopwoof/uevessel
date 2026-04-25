@@ -48,6 +48,17 @@ public:
 	UPROPERTY(EditAnywhere, config, Category="Dev", meta=(DisplayName="Allow HTTP (localhost only)"))
 	bool bAllowHttp;
 
+	/**
+	 * Which built-in agent template the chat panel boots with. Resolved via
+	 * FVesselAgentTemplates::FindByName at session start. Empty falls back
+	 * to "designer-assistant". Built-in names: designer-assistant,
+	 * asset-pipeline, vessel-default. Custom templates (v0.3) plug in here.
+	 */
+	UPROPERTY(EditAnywhere, config, Category="Agents",
+		meta=(DisplayName="Default Agent",
+		      ToolTip="designer-assistant | asset-pipeline | vessel-default"))
+	FString DefaultAgentName;
+
 	/** Convenience accessor for the resolved settings singleton. */
 	static const UVesselProjectSettings& GetRef();
 };
