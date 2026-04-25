@@ -68,6 +68,12 @@ private:
 	FReply HandleEditClicked();
 	FReply HandleConfirmRejectClicked();
 	FReply HandleCancelRejectClicked();
+	FReply HandleConfirmEditClicked();
+	FReply HandleCancelEditClicked();
+
+	// Edit-and-approve mode lifecycle.
+	void EnterEditArgsMode();
+	void LeaveEditArgsMode();
 
 	// --- Helpers ---
 	void AppendMessageInternal(const FString& Prefix, const FString& Text);
@@ -93,6 +99,7 @@ private:
 	{
 		Normal,         // Edit / Reject / Approve
 		RejectReason,   // reason input + Confirm/Cancel
+		EditArgs,       // args JSON input + Confirm Edit / Cancel
 	};
 	void SetBarView(EBarView View);
 
@@ -109,6 +116,7 @@ private:
 	TSharedPtr<SButton>                   EditButton;
 	TSharedPtr<SWidgetSwitcher>           BarSwitcher;
 	TSharedPtr<SMultiLineEditableTextBox> RejectReasonInput;
+	TSharedPtr<SMultiLineEditableTextBox> EditArgsInput;
 
 	// --- Session state ---
 	TSharedPtr<FVesselSessionMachine>     CurrentSession;

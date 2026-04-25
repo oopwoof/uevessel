@@ -8,6 +8,7 @@
 #include "Session/VesselSessionConfig.h"
 #include "Session/VesselSessionMachine.h"
 #include "Session/VesselSessionTypes.h"
+#include "Util/VesselJsonSanitizer.h"
 #include "Widgets/SVesselPlanCard.h"
 #include "Widgets/SVesselResultCard.h"
 #include "Widgets/SVesselVerdictCard.h"
@@ -193,7 +194,8 @@ void SVesselChatPanel::Construct(const FArguments& /*InArgs*/)
 						.Text(LOCTEXT("VesselEditButton", "Edit"))
 						.IsEnabled(false)
 						.ToolTipText(LOCTEXT("VesselEditButtonTooltip",
-							"Edit args before approving — arrives in Step 4c.3."))
+							"Edit the args JSON before approving — useful for tweaking a row "
+							"value or fixing a typo without rejecting + re-prompting."))
 						.OnClicked(FOnClicked::CreateSP(this, &SVesselChatPanel::HandleEditClicked))
 					]
 					+ SHorizontalBox::Slot().AutoWidth().Padding(8.f, 0.f, 0.f, 0.f)
@@ -256,6 +258,42 @@ void SVesselChatPanel::Construct(const FArguments& /*InArgs*/)
 							SNew(SButton)
 							.Text(LOCTEXT("VesselConfirmRejectButton", "Confirm Reject"))
 							.OnClicked(FOnClicked::CreateSP(this, &SVesselChatPanel::HandleConfirmRejectClicked))
+						]
+					]
+				]
+
+				// [2] Edit-args input — Edit-and-Approve path
+				+ SWidgetSwitcher::Slot()
+				[
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)
+					[
+						SNew(STextBlock).Text(LOCTEXT("VesselEditArgsPrompt",
+							"Edit the args JSON. The agent's plan reasoning still applies — "
+							"you're only adjusting tool inputs. Must remain valid JSON."))
+						.AutoWrapText(true)
+					]
+					+ SVerticalBox::Slot().FillHeight(1.f)
+					[
+						SAssignNew(EditArgsInput, SMultiLineEditableTextBox)
+						.AllowMultiLine(true)
+						.HintText(LOCTEXT("VesselEditArgsHint", "Edited args JSON..."))
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot().FillWidth(1.f) [ SNew(SSpacer) ]
+						+ SHorizontalBox::Slot().AutoWidth()
+						[
+							SNew(SButton)
+							.Text(LOCTEXT("VesselCancelEditButton", "Cancel"))
+							.OnClicked(FOnClicked::CreateSP(this, &SVesselChatPanel::HandleCancelEditClicked))
+						]
+						+ SHorizontalBox::Slot().AutoWidth().Padding(8.f, 0.f, 0.f, 0.f)
+						[
+							SNew(SButton)
+							.Text(LOCTEXT("VesselConfirmEditButton", "Confirm Edit && Execute"))
+							.OnClicked(FOnClicked::CreateSP(this, &SVesselChatPanel::HandleConfirmEditClicked))
 						]
 					]
 				]
@@ -336,15 +374,20 @@ void SVesselChatPanel::SetApprovalButtonsEnabled(bool bEnabled)
 {
 	if (ApproveButton.IsValid()) ApproveButton->SetEnabled(bEnabled);
 	if (RejectButton.IsValid())  RejectButton->SetEnabled(bEnabled);
-	// Edit stays disabled in Step 4c.2.
+	if (EditButton.IsValid())    EditButton->SetEnabled(bEnabled);
 }
 
 void SVesselChatPanel::SetBarView(EBarView View)
 {
-	if (BarSwitcher.IsValid())
+	if (!BarSwitcher.IsValid()) { return; }
+	int32 Idx = 0;
+	switch (View)
 	{
-		BarSwitcher->SetActiveWidgetIndex(View == EBarView::Normal ? 0 : 1);
+		case EBarView::Normal:        Idx = 0; break;
+		case EBarView::RejectReason:  Idx = 1; break;
+		case EBarView::EditArgs:      Idx = 2; break;
 	}
+	BarSwitcher->SetActiveWidgetIndex(Idx);
 }
 
 // =============================================================================
@@ -531,6 +574,25 @@ void SVesselChatPanel::LeaveRejectReasonMode()
 	SetBarView(EBarView::Normal);
 }
 
+void SVesselChatPanel::EnterEditArgsMode()
+{
+	// Pre-fill the edit box with the agent's original args JSON so the user
+	// only has to tweak. PendingRequest is the live approval payload.
+	if (EditArgsInput.IsValid())
+	{
+		const FString Initial = PendingRequest.IsSet()
+			? PendingRequest->ArgsJson
+			: FString();
+		EditArgsInput->SetText(FText::FromString(Initial));
+	}
+	SetBarView(EBarView::EditArgs);
+}
+
+void SVesselChatPanel::LeaveEditArgsMode()
+{
+	SetBarView(EBarView::Normal);
+}
+
 // =============================================================================
 // Handlers
 // =============================================================================
@@ -614,7 +676,53 @@ FReply SVesselChatPanel::HandleCancelRejectClicked()
 
 FReply SVesselChatPanel::HandleEditClicked()
 {
-	UE_LOG(LogVesselHITL, Log, TEXT("ChatPanel Edit clicked (disabled in Step 4c.2)"));
+	if (!PendingPromise.IsValid() || !PendingRequest.IsSet())
+	{
+		// No pending approval — nothing to edit. Defensive against stale clicks.
+		return FReply::Handled();
+	}
+	EnterEditArgsMode();
+	return FReply::Handled();
+}
+
+FReply SVesselChatPanel::HandleConfirmEditClicked()
+{
+	if (!PendingPromise.IsValid() || !EditArgsInput.IsValid())
+	{
+		return FReply::Handled();
+	}
+	const FString EditedJson = EditArgsInput->GetText().ToString().TrimStartAndEnd();
+	if (EditedJson.IsEmpty())
+	{
+		AppendAssistantMessage(TEXT("Edit failed: args JSON cannot be empty."));
+		return FReply::Handled();
+	}
+
+	// Validate the user's edit parses as a JSON object before submitting.
+	// FVesselJsonSanitizer::ParseAsObject runs the same fence-strip + repair
+	// pass the agent's own JSON goes through, so an LLM-flavored hand edit
+	// (e.g. trailing newline, embedded ```json fence) still passes.
+	TSharedPtr<FJsonObject> Parsed;
+	if (!FVesselJsonSanitizer::ParseAsObject(EditedJson, Parsed) || !Parsed.IsValid())
+	{
+		AppendAssistantMessage(TEXT(
+			"Edit failed: args JSON did not parse. Fix syntax and try again — "
+			"the original plan stays pending until you Confirm or Cancel."));
+		return FReply::Handled();
+	}
+
+	PendingPromise->SetValue(FVesselApprovalDecision::MakeEdit(EditedJson, TEXT("user")));
+	PendingPromise.Reset();
+	PendingRequest.Reset();
+	LeaveEditArgsMode();
+	LeaveApprovalMode();
+	SetAgentStatus(TEXT("Agent: executing edited step..."));
+	return FReply::Handled();
+}
+
+FReply SVesselChatPanel::HandleCancelEditClicked()
+{
+	LeaveEditArgsMode();
 	return FReply::Handled();
 }
 
