@@ -28,6 +28,11 @@ public class VesselEditor : ModuleRules
 			"WorkspaceMenuStructure",
 			"DataValidation",   // UEditorValidatorSubsystem (UE 5.x)
 			"AssetRegistry",
+			// Direct use of FJsonObject / FJsonValue / FJsonObjectConverter.
+			// UE 5.7 enforces that consumers list these explicitly; relying on
+			// VesselCore's transitive export is no longer enough.
+			"Json",
+			"JsonUtilities",
 		});
 
 		bEnableExceptions = false;

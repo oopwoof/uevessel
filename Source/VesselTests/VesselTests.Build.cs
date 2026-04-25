@@ -21,6 +21,11 @@ public class VesselTests : ModuleRules
 		{
 			"AutomationController",
 			"AssetRegistry",
+			// Tests directly construct FJsonObject and call SetStringField /
+			// TryGetStringField; UE 5.7 requires explicit Json deps even when
+			// VesselCore re-exports them.
+			"Json",
+			"JsonUtilities",
 		});
 
 		bEnableExceptions = false;
