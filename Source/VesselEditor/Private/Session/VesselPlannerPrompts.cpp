@@ -126,6 +126,16 @@ FLlmRequest FVesselPlannerPrompts::BuildPlanningRequest(
 	{
 		SystemText += GuidesBlock;
 		SystemText += TEXT("\n");
+		UE_LOG(LogVesselSession, Log,
+			TEXT("Planner: injected %d chars of project guides from AGENTS.md "
+			     "(contains 'Past rejections'? %s)"),
+			GuidesBlock.Len(),
+			GuidesBlock.Contains(TEXT("Past rejections")) ? TEXT("YES") : TEXT("no"));
+	}
+	else
+	{
+		UE_LOG(LogVesselSession, Verbose,
+			TEXT("Planner: no project guides found (AGENTS.md missing or empty)."));
 	}
 
 	SystemText += TEXT("## Available tools (machine-readable schemas)\n");
@@ -139,7 +149,15 @@ FLlmRequest FVesselPlannerPrompts::BuildPlanningRequest(
 	SystemText += TEXT("  ]\n");
 	SystemText += TEXT("}\n\n");
 	SystemText += TEXT("If the user request cannot be satisfied with the available tools, return an empty plan: {\"plan\":[]}.\n");
-	SystemText += TEXT("Keep steps minimal. Prefer a one-step plan when the user's goal needs one tool call.\n");
+	SystemText += TEXT("Keep steps minimal. Prefer a one-step plan when the user's goal needs one tool call.\n\n");
+	SystemText += TEXT("## JSON formatting rules — STRICT\n");
+	SystemText += TEXT("Inside any string value (especially `reasoning`), DO NOT use raw \" double-quote ");
+	SystemText += TEXT("characters. They will break our JSON parser. If you need to quote something:\n");
+	SystemText += TEXT("  - For Chinese text, use 「」 or 『』 (full-width quotes).\n");
+	SystemText += TEXT("  - For English/code, use ' single quotes, or escape with \\\".\n");
+	SystemText += TEXT("Example WRONG: \"reasoning\":\"User asked to add a \"typical\" row\" — parser dies.\n");
+	SystemText += TEXT("Example RIGHT: \"reasoning\":\"User asked to add a 'typical' row\" — clean.\n");
+	SystemText += TEXT("Example RIGHT: \"reasoning\":\"用户要添加一行「典型数据」\" — clean.\n");
 
 	if (!ReviseDirective.IsEmpty())
 	{

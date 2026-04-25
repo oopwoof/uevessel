@@ -263,7 +263,16 @@ FString FVesselGuidesLoader::BuildProjectGuidesBlock(
 	}
 	if (Recent.Num() > 0)
 	{
-		Out += TEXT("## Past rejections (avoid repeating)\n");
+		Out += TEXT("## Past rejections (project-level do-not guidance)\n");
+		Out += TEXT("The following actions were rejected by users in earlier sessions ");
+		Out += TEXT("on this project. Treat each entry as soft guidance, NOT a hard ban:\n");
+		Out += TEXT("  - If the current request closely matches a past rejection, ");
+		Out += TEXT("acknowledge it in your step `reasoning` (e.g. \"a similar request was ");
+		Out += TEXT("rejected before with reason X; the user has now re-confirmed, proceeding\").\n");
+		Out += TEXT("  - If the current request would directly repeat a rejected pattern AND ");
+		Out += TEXT("the user did NOT explicitly re-confirm, prefer planning a clarifying ");
+		Out += TEXT("read step instead of the rejected write.\n\n");
+		Out += TEXT("Past rejections (newest last):\n");
 		for (const FRejectionEntry& E : Recent)
 		{
 			Out += TEXT("- tool=");
