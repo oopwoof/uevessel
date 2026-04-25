@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Async/Future.h"
+#include "Delegates/Delegate.h"
 #include "Delegates/IDelegateInstance.h"
 
 #include "Session/VesselApprovalTypes.h"
@@ -14,6 +15,28 @@ class ILlmProvider;
 class IVesselApprovalClient;
 class FVesselSessionLog;
 struct FLlmResponse;
+
+/**
+ * Session-level observation hooks for UI / tooling that wants to surface
+ * intermediate FSM events (chat panel, telemetry, debug overlays). All
+ * broadcasts fire on the Game Thread, after the corresponding JSONL record
+ * has been written, so consumers can trust the log is the canonical source
+ * if any handler throws / drops the event.
+ *
+ * These are observation-only: handlers must NOT mutate session state or
+ * call back into the Machine. Use SetApprovalClient for UI that needs
+ * synchronous control over the FSM.
+ */
+DECLARE_MULTICAST_DELEGATE_OneParam(
+	FVesselSessionOnPlanReady, const FVesselPlan& /*Plan*/);
+DECLARE_MULTICAST_DELEGATE_FourParams(
+	FVesselSessionOnStepExecuted,
+	const FVesselPlanStep& /*Step*/,
+	const FString& /*ResultJson*/,
+	bool /*bWasError*/,
+	const FString& /*ErrorMessage*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(
+	FVesselSessionOnJudgeVerdict, const FVesselJudgeVerdict& /*Verdict*/);
 
 /**
  * The agent session FSM. Runs Planner → Executor → Judge loops, enforces
@@ -72,6 +95,16 @@ public:
 	 * never for interactive use.
 	 */
 	void SetApprovalClient(TSharedRef<IVesselApprovalClient> InClient);
+
+	/**
+	 * Observation delegates — see FVesselSessionOnPlanReady etc. above for
+	 * threading + invariants. Bind before RunAsync; safe to bind/unbind any
+	 * time, but events between Init and the next Game-Thread tick may race
+	 * with bind. For Slate consumers, bind in widget Construct.
+	 */
+	FVesselSessionOnPlanReady     OnPlanReady;
+	FVesselSessionOnStepExecuted  OnStepExecuted;
+	FVesselSessionOnJudgeVerdict  OnJudgeVerdict;
 
 	/**
 	 * Pure predicate: does a step that resolves to this tool schema require

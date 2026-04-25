@@ -293,6 +293,12 @@ void FVesselSessionMachine::HandlePlanningComplete(const FLlmResponse& Response)
 		EnterDone(TEXT("Planner returned an empty plan — nothing to execute."));
 		return;
 	}
+
+	// Notify observers (e.g. chat panel) — fires only on a valid, non-empty
+	// plan. Invalid / empty paths surface through the terminal Outcome via
+	// EnterFailed / EnterDone so the UI doesn't need a "rejected plan" card.
+	OnPlanReady.Broadcast(CurrentPlan);
+
 	CurrentStepIndex = 0;
 	EnterToolSelection();
 }
@@ -487,6 +493,7 @@ void FVesselSessionMachine::InvokeStep(const FVesselPlanStep& Step)
 		const int32 Count = ErrorCounts.FindRef(VesselSessionDetail::FormatErrorKey(Step.ToolName, Code));
 
 		LogStepExecuted(Step, Result.Value, /*bWasError=*/true, Result.Message);
+		OnStepExecuted.Broadcast(Step, Result.Value, /*bWasError=*/true, Result.Message);
 
 		if (Count >= Config.Budget.RepeatErrorLimit)
 		{
@@ -505,6 +512,7 @@ void FVesselSessionMachine::InvokeStep(const FVesselPlanStep& Step)
 	}
 
 	LogStepExecuted(Step, Result.Value, /*bWasError=*/false, FString());
+	OnStepExecuted.Broadcast(Step, Result.Value, /*bWasError=*/false, FString());
 	EnterJudgeReview(Result.Value);
 }
 
@@ -567,6 +575,7 @@ void FVesselSessionMachine::HandleJudgeComplete(const FLlmResponse& Response)
 	TotalCostUsd += Response.Usage.EstimatedCostUsd;
 	const FVesselJudgeVerdict Verdict = FVesselPlannerPrompts::ParseJudgeResponse(Response);
 	LogJudgeVerdict(Verdict);
+	OnJudgeVerdict.Broadcast(Verdict);
 
 	switch (Verdict.Decision)
 	{
