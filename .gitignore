@@ -88,3 +88,7 @@ node_modules/
 
 # Release-prep scratch (gh release create input)
 .release-notes.md
+
+# External-review scratch files (Gemini / other review prompts)
+.gemini-*
+.review-*
