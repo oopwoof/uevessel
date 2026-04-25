@@ -1,12 +1,14 @@
 name: build-plugin
 
-# Vessel CI pipeline — PLACEHOLDER
-# Pre-v0.1: only runs doc / format checks because the plugin source tree does not exist yet.
-# When v0.1 lands Source/VesselCore + Source/VesselEditor, the UE matrix job is uncommented.
+# Vessel CI pipeline.
+# v0.1 (alpha): docs / branding / API-key / clang-format checks on every push + PR.
+# A real UE build matrix is scaffolded below but commented out — it requires
+# self-hosted runners with UE installed and is a v0.2 deliverable.
 
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]      # also run on release tags so the GitHub Release page shows a green check
   pull_request:
     branches: [ main ]
 
@@ -58,12 +60,12 @@ jobs:
           echo "OK: no obvious API keys"
 
   clang-format:
-    # Advisory-only during pre-v0.1 alpha: author does not yet have clang-format
-    # locally, so we report drift but do not block main. Re-enable strict mode
-    # (drop `continue-on-error` from the job) once `clang-format --version` is
-    # available on the author's machine and the backlog of drift is cleared.
+    # Advisory during v0.1 alpha: maintainer does not yet have clang-format
+    # locally, so we report drift but do not block main. v0.2 will (a) install
+    # clang-format on the author's box, (b) sweep the existing drift, then
+    # (c) drop `continue-on-error` from this job to make format blocking.
     # See CODING_STYLE.md §8 for the ultimate rule (CI enforces format).
-    name: C++ format check (advisory · pre-v0.1)
+    name: C++ format check (advisory)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -83,20 +85,23 @@ jobs:
           clang-format-version: '17'
           check-path: '.'
 
-  # --- UE build matrix · enabled when Source/ is populated ---
+  # --- UE build matrix · v0.2 deliverable ---
+  # GitHub-hosted runners do NOT ship Unreal Engine; this needs either
+  # self-hosted runners with UE installed, or a community Docker image.
+  # v0.1 ships without this — the maintainer hand-validated UE 5.7 build
+  # + 69 automation tests + L5 end-to-end. v0.2 turns this into CI gates.
   # ue-build:
   #   name: UE ${{ matrix.ue }} / ${{ matrix.os }}
   #   runs-on: ${{ matrix.os }}
   #   strategy:
   #     fail-fast: false
   #     matrix:
-  #       ue: ['5.7']  # v0.1 仅 5.7;5.5/5.6 待 v0.2 验证后扩展
+  #       ue: ['5.7']  # v0.1 仅 5.7;5.5/5.6 兼容验证留 v0.2
   #       os: [windows-2022]
   #   steps:
   #     - uses: actions/checkout@v4
   #     - name: Set up UE
-  #       # self-hosted runner with UE installed, or use a community action
-  #       run: echo "TBD: bootstrap UE ${{ matrix.ue }}"
+  #       run: echo "TBD: self-hosted runner bootstrap UE ${{ matrix.ue }}"
   #     - name: Build plugin
   #       run: |
   #         # RunUAT BuildPlugin -Plugin=... -Package=Out -TargetPlatforms=Win64
