@@ -8,6 +8,9 @@
 #include "Session/VesselSessionConfig.h"
 #include "Session/VesselSessionMachine.h"
 #include "Session/VesselSessionTypes.h"
+#include "Widgets/SVesselPlanCard.h"
+#include "Widgets/SVesselResultCard.h"
+#include "Widgets/SVesselVerdictCard.h"
 #include "Widgets/VesselSlateApprovalClient.h"
 
 #include "Async/Async.h"
@@ -251,27 +254,53 @@ void SVesselChatPanel::Construct(const FArguments& /*InArgs*/)
 // Public API
 // =============================================================================
 
-void SVesselChatPanel::AppendMessageInternal(const FString& Prefix, const FString& Text)
+void SVesselChatPanel::AppendChatWidget(TSharedRef<SWidget> W)
 {
 	if (!ChatScroll.IsValid()) { return; }
 
-	// Cap total messages so a long session doesn't accumulate thousands of widgets.
+	// Cap total widgets so a long session doesn't accumulate hundreds of cards.
 	while (ChatScroll->GetChildren()->Num() >= VesselChatPanelDetail::MaxChatMessages)
 	{
 		ChatScroll->RemoveSlot(ChatScroll->GetChildren()->GetChildAt(0));
 	}
 
-	ChatScroll->AddSlot().Padding(2.f)
-	[
+	ChatScroll->AddSlot().Padding(2.f) [ W ];
+	ChatScroll->ScrollToEnd();
+}
+
+void SVesselChatPanel::AppendMessageInternal(const FString& Prefix, const FString& Text)
+{
+	AppendChatWidget(
 		SNew(STextBlock)
 		.Text(FText::FromString(Prefix + Text))
-		.AutoWrapText(true)
-	];
-	ChatScroll->ScrollToEnd();
+		.AutoWrapText(true));
 }
 
 void SVesselChatPanel::AppendUserMessage(const FString& Text)      { AppendMessageInternal(TEXT("you · "), Text); }
 void SVesselChatPanel::AppendAssistantMessage(const FString& Text) { AppendMessageInternal(TEXT("Vessel · "), Text); }
+
+void SVesselChatPanel::HandlePlanReady(const FVesselPlan& Plan)
+{
+	AppendChatWidget(SNew(SVesselPlanCard).Plan(&Plan));
+}
+
+void SVesselChatPanel::HandleStepExecuted(
+	const FVesselPlanStep& Step, const FString& ResultJson,
+	bool bWasError, const FString& ErrorMessage)
+{
+	AppendChatWidget(
+		SNew(SVesselResultCard)
+		.StepIndex(Step.StepIndex)
+		.ToolName(Step.ToolName)
+		.ResultJson(ResultJson)
+		.bWasError(bWasError)
+		.ErrorMessage(ErrorMessage));
+}
+
+void SVesselChatPanel::HandleJudgeVerdict(const FVesselJudgeVerdict& Verdict)
+{
+	AppendChatWidget(SNew(SVesselVerdictCard).Verdict(&Verdict));
+}
 
 void SVesselChatPanel::SetAgentStatus(const FString& S)  { if (AgentStatus.IsValid())     AgentStatus->SetText(FText::FromString(S)); }
 void SVesselChatPanel::SetDiffPreview(const FString& D)  { if (DiffArea.IsValid())        DiffArea->SetText(FText::FromString(D)); }
@@ -351,6 +380,36 @@ void SVesselChatPanel::BeginSession(const FString& UserInput)
 		if (InputBox.IsValid())   { InputBox->SetEnabled(true); }
 		return;
 	}
+
+	// Subscribe to session observation delegates so the chat panel surfaces
+	// each FSM event as a card. Delegates fire on the Game Thread per the
+	// Session Machine contract, so handlers can touch Slate directly.
+	// WeakSelf prevents firing into a destroyed panel.
+	CurrentSession->OnPlanReady.AddLambda(
+		[WeakSelf](const FVesselPlan& Plan)
+		{
+			if (TSharedPtr<SVesselChatPanel> Pinned = WeakSelf.Pin())
+			{
+				Pinned->HandlePlanReady(Plan);
+			}
+		});
+	CurrentSession->OnStepExecuted.AddLambda(
+		[WeakSelf](const FVesselPlanStep& Step, const FString& ResultJson,
+			bool bWasError, const FString& ErrorMessage)
+		{
+			if (TSharedPtr<SVesselChatPanel> Pinned = WeakSelf.Pin())
+			{
+				Pinned->HandleStepExecuted(Step, ResultJson, bWasError, ErrorMessage);
+			}
+		});
+	CurrentSession->OnJudgeVerdict.AddLambda(
+		[WeakSelf](const FVesselJudgeVerdict& Verdict)
+		{
+			if (TSharedPtr<SVesselChatPanel> Pinned = WeakSelf.Pin())
+			{
+				Pinned->HandleJudgeVerdict(Verdict);
+			}
+		});
 
 	CurrentSession->RunAsync(UserInput).Next(
 		[WeakSelf](FVesselSessionOutcome Outcome)

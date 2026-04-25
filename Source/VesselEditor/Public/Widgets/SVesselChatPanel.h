@@ -13,10 +13,14 @@ class SMultiLineEditableTextBox;
 class SButton;
 class SScrollBox;
 class SWidgetSwitcher;
+class SWidget;
 
 class FVesselSessionMachine;
 class FVesselSlateApprovalClient;
 struct FVesselSessionOutcome;
+struct FVesselPlan;
+struct FVesselPlanStep;
+struct FVesselJudgeVerdict;
 
 /**
  * Top-level Vessel dock panel. Owns the per-tab session machine, a Slate
@@ -67,7 +71,19 @@ private:
 
 	// --- Helpers ---
 	void AppendMessageInternal(const FString& Prefix, const FString& Text);
+	void AppendChatWidget(TSharedRef<SWidget> W);
 	void SetApprovalButtonsEnabled(bool bEnabled);
+
+	/**
+	 * Session-event card append helpers — bound to FVesselSessionMachine's
+	 * observation delegates (OnPlanReady / OnStepExecuted / OnJudgeVerdict).
+	 * Always called on the Game Thread.
+	 */
+	void HandlePlanReady(const FVesselPlan& Plan);
+	void HandleStepExecuted(
+		const FVesselPlanStep& Step, const FString& ResultJson,
+		bool bWasError, const FString& ErrorMessage);
+	void HandleJudgeVerdict(const FVesselJudgeVerdict& Verdict);
 
 	// Which view of the action bar is showing.
 	enum class EBarView : uint8
