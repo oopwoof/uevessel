@@ -44,6 +44,18 @@ bool FVesselAgentTemplatesDesignerShape::RunTest(const FString& /*Parameters*/)
 		&& (T.SystemPrompt.Contains(TEXT("safety"))
 			|| T.SystemPrompt.Contains(TEXT("reviews"))
 			|| T.SystemPrompt.Contains(TEXT("approve or reject"))));
+
+	// Pin the "vague request → read-only plan" guidance. Without this rule
+	// the LLM will hallucinate field values for a write step it has to plan
+	// before the read step has executed (single-shot FSM constraint surfaced
+	// in v0.2 Gemini review).
+	TestTrue(TEXT("System prompt distinguishes vague vs explicit value requests"),
+		T.SystemPrompt.Contains(TEXT("VAGUE"))
+		&& T.SystemPrompt.Contains(TEXT("EXPLICIT")));
+	TestTrue(TEXT("System prompt forbids inventing field values"),
+		T.SystemPrompt.Contains(TEXT("Never invent values"))
+		|| T.SystemPrompt.Contains(TEXT("invent values for fields"))
+		|| T.SystemPrompt.Contains(TEXT("fabricate a Title")));
 	return true;
 }
 
