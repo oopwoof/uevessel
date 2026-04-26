@@ -442,11 +442,21 @@ void FVesselSessionMachine::HandleApprovalDecision(
 		case EVesselApprovalDecisionKind::EditAndApprove:
 		{
 			// Swap in the revised args both locally and in the stored plan so
-			// subsequent logs / replay reflect what actually ran.
-			Step.ArgsJson = Decision.RevisedArgsJson;
+			// subsequent logs / replay reflect what actually ran. Snapshot the
+			// pre-edit args first — the Judge prompt later inspects this to
+			// recognise that the user overrode the LLM's plan and should treat
+			// the edited values as authoritative intent, not flag mismatch
+			// with the original chat prompt.
+			const FString PreEditArgs = Step.ArgsJson;
+			Step.OriginalPlannedArgs = PreEditArgs;
+			Step.ArgsJson            = Decision.RevisedArgsJson;
+			Step.bUserEditedArgs     = true;
 			if (CurrentPlan.Steps.IsValidIndex(CurrentStepIndex))
 			{
-				CurrentPlan.Steps[CurrentStepIndex].ArgsJson = Decision.RevisedArgsJson;
+				FVesselPlanStep& Stored = CurrentPlan.Steps[CurrentStepIndex];
+				Stored.OriginalPlannedArgs = PreEditArgs;
+				Stored.ArgsJson            = Decision.RevisedArgsJson;
+				Stored.bUserEditedArgs     = true;
 			}
 			InvokeStep(Step);
 			return;

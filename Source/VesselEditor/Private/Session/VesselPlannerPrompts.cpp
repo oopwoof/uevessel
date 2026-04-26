@@ -184,13 +184,28 @@ FLlmRequest FVesselPlannerPrompts::BuildJudgeRequest(
 	StepObj->SetStringField(TEXT("args"), ExecutedStep.ArgsJson);
 	StepObj->SetStringField(TEXT("reasoning"), ExecutedStep.Reasoning);
 	StepObj->SetNumberField(TEXT("step_index"), ExecutedStep.StepIndex);
+	if (ExecutedStep.bUserEditedArgs)
+	{
+		// Surface the user-edit signal as structured fields so the Judge can
+		// reason about original-vs-edited explicitly. See the system-prompt
+		// rule "User edits at the approval gate" below.
+		StepObj->SetBoolField  (TEXT("user_edited_args"),     true);
+		StepObj->SetStringField(TEXT("original_planned_args"), ExecutedStep.OriginalPlannedArgs);
+	}
 	const FString StepJson = VesselPromptDetail::SerializeCondensed(StepObj);
 
 	FString SystemText;
 	SystemText += TEXT("You are the Judge for a Vessel agent step. Evaluate the executed tool call ");
 	SystemText += TEXT("against the user's intent and these rules:\n\n");
 	SystemText += Config.AgentTemplate.JudgeRubric;
-	SystemText += TEXT("\n\n## Output contract\n");
+	SystemText += TEXT("\n\n## User edits at the approval gate\n");
+	SystemText += TEXT("If the executed step has `user_edited_args=true`, the user explicitly modified the ");
+	SystemText += TEXT("tool arguments at the approval panel before approving. The edited arguments ARE the ");
+	SystemText += TEXT("user's authoritative intent for that step — do NOT flag a mismatch between the ");
+	SystemText += TEXT("original chat prompt and the edited arguments as Reject grounds. Treat ");
+	SystemText += TEXT("`original_planned_args` as historical context only. You may still Reject for tool ");
+	SystemText += TEXT("execution failure, nonsensical args, or validator errors surfaced in the result.\n");
+	SystemText += TEXT("\n## Output contract\n");
 	SystemText += TEXT("Respond with EXACTLY this JSON object (no prose, no markdown fence):\n");
 	SystemText += TEXT("{\n");
 	SystemText += TEXT("  \"decision\": \"approve\" | \"revise\" | \"reject\",\n");

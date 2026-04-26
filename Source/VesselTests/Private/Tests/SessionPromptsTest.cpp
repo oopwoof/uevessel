@@ -195,3 +195,88 @@ bool FVesselPromptFilterByAllowedCategory::RunTest(const FString& /*Parameters*/
 		Sys.Content.Contains(TEXT("ListAssets")));
 	return true;
 }
+
+/**
+ * BuildJudgeRequest must emit the "User edits at the approval gate" guidance in
+ * the system prompt AND the user_edited_args / original_planned_args structured
+ * fields in the user message — but ONLY when the step's bUserEditedArgs flag
+ * is true. This pins the Judge prompt's awareness of user overrides at the
+ * HITL gate, fixing the v0.2 bug where Judge would Reject "edited Age=80"
+ * because the chat prompt originally said Age=90.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselPromptJudgeUserEditedArgs,
+	"Vessel.Session.Prompts.JudgeUserEditedArgs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselPromptJudgeUserEditedArgs::RunTest(const FString& /*Parameters*/)
+{
+	FVesselSessionConfig Cfg = MakeDefaultSessionConfig(TEXT("test-judge-edit"));
+
+	FVesselPlanStep Step;
+	Step.StepIndex = 1;
+	Step.ToolName  = FName(TEXT("WriteDataTableRow"));
+	Step.Reasoning = TEXT("user wanted Age=90");
+	Step.ArgsJson  = TEXT("{\"Age\":80}"); // executed (edited) value
+	Step.bUserEditedArgs     = true;
+	Step.OriginalPlannedArgs = TEXT("{\"Age\":90}");
+
+	const FLlmRequest Req = FVesselPlannerPrompts::BuildJudgeRequest(
+		Cfg, Step, TEXT("{\"ok\":true}"));
+
+	TestTrue(TEXT("Request has system + user messages"), Req.Messages.Num() >= 2);
+	const FLlmMessage& Sys  = Req.Messages[0];
+	const FLlmMessage& User = Req.Messages[1];
+
+	TestTrue(TEXT("System prompt names the user-edit guidance section"),
+		Sys.Content.Contains(TEXT("User edits at the approval gate")));
+	TestTrue(TEXT("System prompt explicitly tells Judge edited args ARE authoritative"),
+		Sys.Content.Contains(TEXT("authoritative intent"))
+		&& Sys.Content.Contains(TEXT("do NOT flag")));
+	TestTrue(TEXT("User message carries user_edited_args=true marker"),
+		User.Content.Contains(TEXT("user_edited_args"))
+		&& User.Content.Contains(TEXT("true")));
+	TestTrue(TEXT("User message carries original_planned_args snapshot"),
+		User.Content.Contains(TEXT("original_planned_args"))
+		&& User.Content.Contains(TEXT("Age\\\":90")));
+	TestTrue(TEXT("User message carries the executed (edited) args"),
+		User.Content.Contains(TEXT("Age\\\":80")));
+	return true;
+}
+
+/**
+ * Regression guard: when bUserEditedArgs=false, the user-edit fields and
+ * guidance section must NOT appear. Ensures the edit context is gated and we
+ * don't pollute every Judge prompt with the override rule.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselPromptJudgeNonEditedClean,
+	"Vessel.Session.Prompts.JudgeNonEditedClean",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselPromptJudgeNonEditedClean::RunTest(const FString& /*Parameters*/)
+{
+	FVesselSessionConfig Cfg = MakeDefaultSessionConfig(TEXT("test-judge-clean"));
+
+	FVesselPlanStep Step;
+	Step.StepIndex = 1;
+	Step.ToolName  = FName(TEXT("ReadDataTable"));
+	Step.Reasoning = TEXT("read schema");
+	Step.ArgsJson  = TEXT("{\"AssetPath\":\"/Game/x\"}");
+	// bUserEditedArgs left default (false); OriginalPlannedArgs left empty.
+
+	const FLlmRequest Req = FVesselPlannerPrompts::BuildJudgeRequest(
+		Cfg, Step, TEXT("{\"rows\":[]}"));
+
+	TestTrue(TEXT("Request has system + user messages"), Req.Messages.Num() >= 2);
+	const FLlmMessage& User = Req.Messages[1];
+
+	// Guidance section is always in the system prompt — that's fine; what
+	// must NOT leak is the structured signal in the per-step JSON, since
+	// any user_edited_args=true would falsely activate the Judge override.
+	TestFalse(TEXT("Non-edited step does NOT carry user_edited_args field"),
+		User.Content.Contains(TEXT("user_edited_args")));
+	TestFalse(TEXT("Non-edited step does NOT carry original_planned_args field"),
+		User.Content.Contains(TEXT("original_planned_args")));
+	return true;
+}

@@ -58,6 +58,18 @@ struct FVesselPlanStep
 
 	/** 1-based index within the parent plan. Stable even under revise (original index preserved). */
 	int32 StepIndex = 0;
+
+	/**
+	 * True iff the user explicitly modified ArgsJson at the HITL approval gate
+	 * (EditAndApprove kind). When true, OriginalPlannedArgs holds the LLM's
+	 * pre-edit args. The Judge prompt uses these two signals to treat the
+	 * edited values as the user's authoritative intent for that step rather
+	 * than flagging mismatch with the original chat prompt.
+	 */
+	bool bUserEditedArgs = false;
+
+	/** Pre-edit args snapshot. Populated only when bUserEditedArgs=true. */
+	FString OriginalPlannedArgs;
 };
 
 /** A Planner output. */
