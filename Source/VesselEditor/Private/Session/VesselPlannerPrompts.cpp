@@ -179,66 +179,22 @@ FLlmRequest FVesselPlannerPrompts::BuildJudgeRequest(
 	const FVesselPlanStep& ExecutedStep,
 	const FString& ToolResultJson)
 {
-	// Branch on the user-edit signal: when the user has explicitly modified
-	// args at the HITL gate, we present a much narrower step JSON to Judge —
-	// reasoning and original_planned_args are deliberately omitted because
-	// empirically (v0.2 Edit-and-Approve testing) any contradicting historical
-	// signal causes the Judge LLM to override the directive and Reject on
-	// "mismatch with original intent". The user's edit IS the new intent;
-	// hiding the contradicting fields is far more reliable than verbal
-	// directives telling Judge to ignore them.
+	// User-edited steps never reach this builder — the FSM short-circuits
+	// them in EnterJudgeReview with a deterministic Approve verdict (see
+	// VesselSessionMachine.cpp, the `bUserEditedArgs` early return). That
+	// single bypass keeps this prompt uniform across every path that
+	// actually calls an LLM Judge.
 	TSharedRef<FJsonObject> StepObj = MakeShared<FJsonObject>();
 	StepObj->SetStringField(TEXT("tool"), ExecutedStep.ToolName.ToString());
 	StepObj->SetStringField(TEXT("args"), ExecutedStep.ArgsJson);
+	StepObj->SetStringField(TEXT("reasoning"), ExecutedStep.Reasoning);
 	StepObj->SetNumberField(TEXT("step_index"), ExecutedStep.StepIndex);
-	if (ExecutedStep.bUserEditedArgs)
-	{
-		StepObj->SetBoolField(TEXT("user_edited_args"), true);
-		// reasoning + original_planned_args are deliberately NOT included.
-		// They live on FVesselPlanStep for logs / UI / replay.
-	}
-	else
-	{
-		StepObj->SetStringField(TEXT("reasoning"), ExecutedStep.Reasoning);
-	}
 	const FString StepJson = VesselPromptDetail::SerializeCondensed(StepObj);
 
 	FString SystemText;
-	if (ExecutedStep.bUserEditedArgs)
-	{
-		// Reframe the role entirely: this is no longer intent-verification,
-		// it is tool-output validation. The user already approved the args.
-		SystemText += TEXT("You are the Judge for a Vessel agent step. ");
-		SystemText += TEXT("**The user explicitly edited and authorized this step's `args` at the approval ");
-		SystemText += TEXT("panel.** They reviewed the LLM's plan, modified the arguments, and confirmed ");
-		SystemText += TEXT("execution. The values currently in `args` ARE the user's authoritative intent.\n\n");
-		SystemText += TEXT("Your role for this step is **reduced to tool-output validation**. You are NOT ");
-		SystemText += TEXT("checking whether args match the user's chat prompt — that comparison is invalid ");
-		SystemText += TEXT("here, because the user's edit replaced their original prompt as the intent of ");
-		SystemText += TEXT("record. Compare ONLY the executed args to the tool result.\n\n");
-		SystemText += TEXT("Decide:\n");
-		SystemText += TEXT("  - **approve** when: tool ran cleanly, no validator errors in result, output ");
-		SystemText += TEXT("is well-formed for the given args.\n");
-		SystemText += TEXT("  - **revise** when: tool result is partial / structurally incomplete in a way ");
-		SystemText += TEXT("the SAME args could fix on retry (rare; usually approve).\n");
-		SystemText += TEXT("  - **reject** when: tool execution genuinely failed (exception / `ok:false` / ");
-		SystemText += TEXT("error in result body), OR a validator surfaced concrete errors in the OUTPUT.\n\n");
-		SystemText += TEXT("**You MUST NOT Reject for any of the following — these are NOT valid grounds ");
-		SystemText += TEXT("when `user_edited_args=true`:**\n");
-		SystemText += TEXT("  - args differ from anything the user said in chat\n");
-		SystemText += TEXT("  - args differ from what the LLM originally planned\n");
-		SystemText += TEXT("  - prior rejections noted in the agent's known-rejections context\n");
-		SystemText += TEXT("  - any \"the user said X but we wrote Y\" reasoning\n\n");
-		SystemText += TEXT("Example: tool=WriteDataTableRow, args={\"Age\":80}, result={\"ok\":true}, ");
-		SystemText += TEXT("`user_edited_args=true`. Verdict: **approve**. The user wanted 80; tool wrote ");
-		SystemText += TEXT("80; no failure. What chat originally said is HISTORICAL and irrelevant here.\n");
-	}
-	else
-	{
-		SystemText += TEXT("You are the Judge for a Vessel agent step. Evaluate the executed tool call ");
-		SystemText += TEXT("against the user's intent and these rules:\n\n");
-		SystemText += Config.AgentTemplate.JudgeRubric;
-	}
+	SystemText += TEXT("You are the Judge for a Vessel agent step. Evaluate the executed tool call ");
+	SystemText += TEXT("against the user's intent and these rules:\n\n");
+	SystemText += Config.AgentTemplate.JudgeRubric;
 	SystemText += TEXT("\n\n## Output contract\n");
 	SystemText += TEXT("Respond with EXACTLY this JSON object (no prose, no markdown fence):\n");
 	SystemText += TEXT("{\n");

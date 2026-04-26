@@ -100,6 +100,15 @@ struct FVesselJudgeVerdict
 
 	/** When Decision=Reject, the reason that sinks to AGENTS.md Known Rejections. */
 	FString RejectReason;
+
+	/**
+	 * True when the verdict was synthesised deterministically (no LLM Judge
+	 * call). Currently set for user-edited steps, where the user's HITL-gate
+	 * approval IS the intent of record so an LLM intent-check is meaningless.
+	 * Surfaced in the session JSONL log under "bypassed_llm_judge" for
+	 * replay / audit, and used by tests to assert the bypass occurred.
+	 */
+	bool bBypassedLlmJudge = false;
 };
 
 /** Terminal state description for a session. */

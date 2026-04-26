@@ -437,3 +437,112 @@ bool FVesselHITLReadOnlyBypass::RunTest(const FString& /*Parameters*/)
 	VesselHITLTestDetail::RestoreDefaultMockProvider();
 	return true;
 }
+
+// =============================================================================
+// End-to-end: Edit-and-Approve bypasses LLM Judge entirely
+// =============================================================================
+//
+// v0.2 Edit-and-Approve real-LLM testing surfaced a pathology where the LLM
+// Judge would Reject user-edited steps because args=80 didn't match the
+// chat-prompt's stated 90 — even after we layered "user_edited_args=true"
+// markers and explicit override directives into the prompt. The Judge LLM
+// (Haiku 4.5) cited the historical signals to rationalise rejecting an
+// explicit user override.
+//
+// Gemini 3.1 Pro review (2026-04-25) recommended the structural fix:
+// short-circuit the Judge entirely for user-edited steps. The user's HITL-
+// gate edit IS the intent of record; an LLM intent-check is meaningless and
+// the only Reject path that remained (tool execution failure) is already
+// caught upstream in InvokeStep. This test pins that contract end-to-end.
+//
+// Asserts:
+//   - Mock provider is called exactly ONCE (Plan only — no Judge call).
+//   - The session JSONL log carries a JudgeVerdict record with
+//     bypassed_llm_judge:true so replay tools can identify deterministic
+//     verdicts vs LLM-decided ones.
+//   - The session ends Done.
+//   - The tool was invoked with the EDITED args, not the planned args.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVesselHITLEditAndApproveBypassesLlmJudge,
+	"Vessel.HITL.E2E.EditAndApproveBypassesLlmJudge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+
+bool FVesselHITLEditAndApproveBypassesLlmJudge::RunTest(const FString& /*Parameters*/)
+{
+	FVesselToolRegistry::Get().ScanAll();
+
+	auto Mock = VesselHITLTestDetail::PushFreshMockProvider();
+	Mock->SetFixtureForLastUserMessage(
+		TEXT("hitl-edit-bypass"),
+		VesselHITLTestDetail::MakeOkContent(
+			VesselHITLTestDetail::PlanCallsIrreversibleWrite()));
+	// SetDefault is the safety-net for any extra LLM call (e.g. Judge). If the
+	// bypass logic regresses, the Judge would be called and consume this; we
+	// then catch it via the call-count assertion below.
+	Mock->SetDefaultResponse(
+		VesselHITLTestDetail::MakeOkContent(
+			TEXT("{\"decision\":\"reject\",\"reasoning\":\"safety-net\",")
+			TEXT("\"reject_reason\":\"this should never be returned in a passing test\"}")));
+
+	auto Scripted = MakeShared<FVesselScriptedApprovalClient>();
+	const FString EditedArgs = TEXT("{\"Target\":\"/hitl/edited-by-user\"}");
+	Scripted->SetDecisionForTool(FName(TEXT("FixtureIrreversibleWrite")),
+		FVesselApprovalDecision::MakeEdit(EditedArgs, TEXT("test-user")));
+
+	FVesselSessionConfig Cfg = MakeDefaultSessionConfig(FString());
+	Cfg.ProviderId = TEXT("mock");
+
+	TSharedRef<FVesselSessionMachine> Machine = MakeShared<FVesselSessionMachine>();
+	Machine->SetApprovalClient(Scripted);
+	Machine->Init(Cfg);
+	const FString SessionLogPath = Machine->GetLogFilePath();
+
+	const FVesselSessionOutcome Outcome = Machine->RunAsync(TEXT("hitl-edit-bypass")).Get();
+
+	TestEqual(TEXT("Edit-and-Approve session completes Done"),
+		static_cast<uint8>(Outcome.Kind),
+		static_cast<uint8>(EVesselSessionOutcomeKind::Done));
+	TestEqual(TEXT("ApprovalClient queried exactly once (one writeable step)"),
+		Scripted->GetRequestCount(), 1);
+
+	// THE central claim of this test: only one LLM call (Planning); no Judge.
+	TestEqual(TEXT("Mock provider received exactly ONE LLM call (Planner only — Judge bypassed)"),
+		Mock->GetCallCount(), 1);
+
+	// Session JSONL must surface the bypass marker AND the edited args.
+	TArray<FString> Lines;
+	if (FFileHelper::LoadFileToStringArray(Lines, *SessionLogPath))
+	{
+		bool bBypassMarker      = false;
+		bool bApprovalDecision  = false;
+		bool bEditedArgsInLog   = false;
+		for (const FString& L : Lines)
+		{
+			if (L.Contains(TEXT("\"type\":\"JudgeVerdict\""))
+				&& L.Contains(TEXT("\"bypassed_llm_judge\":true")))
+			{
+				bBypassMarker = true;
+			}
+			if (L.Contains(TEXT("\"type\":\"ApprovalDecision\"")))
+			{
+				bApprovalDecision = true;
+				if (L.Contains(TEXT("/hitl/edited-by-user")))
+				{
+					bEditedArgsInLog = true;
+				}
+			}
+		}
+		TestTrue(TEXT("JudgeVerdict log carries bypassed_llm_judge=true"), bBypassMarker);
+		TestTrue(TEXT("ApprovalDecision log entry exists"),                 bApprovalDecision);
+		TestTrue(TEXT("ApprovalDecision log captures the user-edited args"), bEditedArgsInLog);
+	}
+	else
+	{
+		AddError(FString::Printf(TEXT("Session log not readable: '%s'"), *SessionLogPath));
+	}
+
+	VesselHITLTestDetail::DeletePath(SessionLogPath);
+	VesselHITLTestDetail::RestoreDefaultMockProvider();
+	return true;
+}

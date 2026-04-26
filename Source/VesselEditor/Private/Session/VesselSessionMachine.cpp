@@ -565,6 +565,30 @@ void FVesselSessionMachine::EnterJudgeReview(const FString& ToolResultJson)
 	if (bAbortRequested) { EnterFailed(AbortReason, EVesselSessionOutcomeKind::AbortedByUser); return; }
 
 	const FVesselPlanStep& Step = CurrentPlan.Steps[CurrentStepIndex];
+
+	// Short-circuit: user-edited steps bypass the LLM Judge entirely. The user
+	// already authorised these specific args at the HITL gate, and InvokeStep
+	// routed away from here on any tool-execution error — so the verdict can
+	// only be Approve. Calling an LLM Judge here would (a) waste a token
+	// round-trip on a foregone conclusion, and (b) empirically risk the Judge
+	// LLM contradicting the user's explicit override despite directive prompts
+	// (v0.2 Edit-and-Approve real-LLM testing + Gemini 3.1 Pro review,
+	// 2026-04-25). Keeps the LLM-Judge prompt uniform across other paths.
+	if (Step.bUserEditedArgs)
+	{
+		FVesselJudgeVerdict Verdict;
+		Verdict.Decision          = EVesselJudgeDecision::Approve;
+		Verdict.Reasoning         = TEXT(
+			"User-edited step bypassed LLM Judge: the user explicitly authorised "
+			"these args at the approval gate, and the tool returned cleanly.");
+		Verdict.bBypassedLlmJudge = true;
+		LogJudgeVerdict(Verdict);
+		OnJudgeVerdict.Broadcast(Verdict);
+		ConsecutiveReviseCount = 0;
+		EnterNextStep();
+		return;
+	}
+
 	const FLlmRequest Request = FVesselPlannerPrompts::BuildJudgeRequest(Config, Step, ToolResultJson);
 
 	TWeakPtr<FVesselSessionMachine> Weak = AsWeak();
@@ -616,6 +640,7 @@ void FVesselSessionMachine::LogJudgeVerdict(const FVesselJudgeVerdict& Verdict)
 	P->SetStringField(TEXT("reasoning"), Verdict.Reasoning);
 	if (!Verdict.ReviseDirective.IsEmpty()) P->SetStringField(TEXT("revise_directive"), Verdict.ReviseDirective);
 	if (!Verdict.RejectReason.IsEmpty())    P->SetStringField(TEXT("reject_reason"),    Verdict.RejectReason);
+	if (Verdict.bBypassedLlmJudge)          P->SetBoolField  (TEXT("bypassed_llm_judge"), true);
 	if (Log) Log->AppendRecord(TEXT("JudgeVerdict"), P);
 }
 
