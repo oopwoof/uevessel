@@ -93,7 +93,11 @@ FVesselAgentTemplate FVesselAgentTemplates::MakeAssetPipelineAgent()
 		TEXT("clearly mistyped. Reject when the agent ignored validator errors, suggested ")
 		TEXT("DataTable writes (out of scope), or attempted to invent paths.");
 
-	T.AllowedCategories = { TEXT("Asset"), TEXT("Validator") };
+	// "Meta" is the actual category that ListAssets / ReadAssetMetadata are
+	// registered under (see VesselAssetTools.h). Originally wrote "Asset"
+	// here from a too-quick semantic guess — that filtered out every asset
+	// discovery tool and produced empty plans for "list assets in /Game/".
+	T.AllowedCategories = { TEXT("Meta"), TEXT("Validator") };
 	T.DeniedTools       = { };
 
 	return T;

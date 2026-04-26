@@ -108,11 +108,18 @@ bool FVesselAgentTemplatesAssetPipelineShape::RunTest(const FString& /*Parameter
 	TestTrue(TEXT("System prompt non-empty"),  !T.SystemPrompt.IsEmpty());
 	TestTrue(TEXT("Judge rubric non-empty"),   !T.JudgeRubric.IsEmpty());
 
-	// Scope discrimination: Asset+Validator allowed, DataTable NOT allowed.
-	TestTrue(TEXT("Allowed includes Asset"),
-		T.AllowedCategories.Contains(TEXT("Asset")));
+	// Scope discrimination: Meta + Validator allowed, DataTable NOT allowed.
+	// "Meta" is the actual ToolCategory that ListAssets / ReadAssetMetadata
+	// are registered under (see VesselAssetTools.h) — earlier the agent
+	// listed "Asset" here, which matched zero real tools, and this test
+	// pinned that broken state. Re-pinned correctly: the agent must allow
+	// the same category strings the registry actually emits.
+	TestTrue(TEXT("Allowed includes Meta (real category for ListAssets/ReadAssetMetadata)"),
+		T.AllowedCategories.Contains(TEXT("Meta")));
 	TestTrue(TEXT("Allowed includes Validator"),
 		T.AllowedCategories.Contains(TEXT("Validator")));
+	TestFalse(TEXT("Allowed does NOT include 'Asset' (no such registered category)"),
+		T.AllowedCategories.Contains(TEXT("Asset")));
 	TestFalse(TEXT("Allowed does NOT include DataTable"),
 		T.AllowedCategories.Contains(TEXT("DataTable")));
 	TestFalse(TEXT("Allowed does NOT include DataTable/Write"),
