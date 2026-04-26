@@ -197,12 +197,22 @@ bool FVesselPromptFilterByAllowedCategory::RunTest(const FString& /*Parameters*/
 }
 
 /**
- * BuildJudgeRequest must emit the "User edits at the approval gate" guidance in
- * the system prompt AND the user_edited_args / original_planned_args structured
- * fields in the user message — but ONLY when the step's bUserEditedArgs flag
- * is true. This pins the Judge prompt's awareness of user overrides at the
- * HITL gate, fixing the v0.2 bug where Judge would Reject "edited Age=80"
- * because the chat prompt originally said Age=90.
+ * BuildJudgeRequest must REFRAME the Judge's role when the step has
+ * bUserEditedArgs=true: from intent-verification to tool-output validation.
+ *
+ * Empirically (v0.2 Edit-and-Approve real-LLM testing), simply telling the
+ * Judge "user_edited_args is authoritative" alongside the original reasoning
+ * and original_planned_args fields was insufficient — the Judge LLM kept
+ * citing the historical signals and Rejecting on chat-prompt mismatch. The
+ * fix: when edited, drop reasoning and original_planned_args from the prompt
+ * entirely, and reframe the system prompt around tool-output validation
+ * instead of intent-comparison. Less rope to hang the Judge with.
+ *
+ * This test pins the contract:
+ *   - the user-edit branch of the prompt is taken
+ *   - contaminating historical fields are NOT in the user message
+ *   - the executed (edited) args ARE in the user message
+ *   - the new reframed system text is present, with explicit MUST-NOT rules
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FVesselPromptJudgeUserEditedArgs,
@@ -212,14 +222,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FVesselPromptJudgeUserEditedArgs::RunTest(const FString& /*Parameters*/)
 {
 	FVesselSessionConfig Cfg = MakeDefaultSessionConfig(TEXT("test-judge-edit"));
+	// Pin a recognisable rubric string so we can assert it's NOT in the
+	// user-edit prompt (the user-edit branch replaces the rubric entirely).
+	Cfg.AgentTemplate.JudgeRubric = TEXT("PIN-RUBRIC-MARKER-XYZZY");
 
 	FVesselPlanStep Step;
 	Step.StepIndex = 1;
 	Step.ToolName  = FName(TEXT("WriteDataTableRow"));
-	Step.Reasoning = TEXT("user wanted Age=90");
+	Step.Reasoning = TEXT("REASONING-MARKER-AGE-90"); // must NOT leak to prompt
 	Step.ArgsJson  = TEXT("{\"Age\":80}"); // executed (edited) value
 	Step.bUserEditedArgs     = true;
-	Step.OriginalPlannedArgs = TEXT("{\"Age\":90}");
+	Step.OriginalPlannedArgs = TEXT("{\"Age\":90}"); // must NOT leak to prompt
 
 	const FLlmRequest Req = FVesselPlannerPrompts::BuildJudgeRequest(
 		Cfg, Step, TEXT("{\"ok\":true}"));
@@ -228,19 +241,27 @@ bool FVesselPromptJudgeUserEditedArgs::RunTest(const FString& /*Parameters*/)
 	const FLlmMessage& Sys  = Req.Messages[0];
 	const FLlmMessage& User = Req.Messages[1];
 
-	TestTrue(TEXT("System prompt names the user-edit guidance section"),
-		Sys.Content.Contains(TEXT("User edits at the approval gate")));
-	TestTrue(TEXT("System prompt explicitly tells Judge edited args ARE authoritative"),
-		Sys.Content.Contains(TEXT("authoritative intent"))
-		&& Sys.Content.Contains(TEXT("do NOT flag")));
+	// System prompt — reframed for the user-edit branch.
+	TestTrue(TEXT("System prompt declares the user authorized the args"),
+		Sys.Content.Contains(TEXT("explicitly edited and authorized")));
+	TestTrue(TEXT("System prompt narrows role to tool-output validation"),
+		Sys.Content.Contains(TEXT("tool-output validation")));
+	TestTrue(TEXT("System prompt forbids chat-prompt mismatch as Reject grounds"),
+		Sys.Content.Contains(TEXT("MUST NOT Reject"))
+		&& Sys.Content.Contains(TEXT("differ from anything the user said in chat")));
+	TestFalse(TEXT("System prompt does NOT include the agent's intent rubric (replaced)"),
+		Sys.Content.Contains(TEXT("PIN-RUBRIC-MARKER-XYZZY")));
+
+	// User message — only safe fields surface.
 	TestTrue(TEXT("User message carries user_edited_args=true marker"),
 		User.Content.Contains(TEXT("user_edited_args"))
 		&& User.Content.Contains(TEXT("true")));
-	TestTrue(TEXT("User message carries original_planned_args snapshot"),
-		User.Content.Contains(TEXT("original_planned_args"))
-		&& User.Content.Contains(TEXT("Age\\\":90")));
 	TestTrue(TEXT("User message carries the executed (edited) args"),
 		User.Content.Contains(TEXT("Age\\\":80")));
+	TestFalse(TEXT("User message does NOT leak original_planned_args (contaminating signal)"),
+		User.Content.Contains(TEXT("original_planned_args")));
+	TestFalse(TEXT("User message does NOT leak the pre-edit reasoning"),
+		User.Content.Contains(TEXT("REASONING-MARKER-AGE-90")));
 	return true;
 }
 
